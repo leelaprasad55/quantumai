@@ -1,0 +1,413 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { EDUCATION_LEVELS, GOALS } from '../../data/modules.js';
+
+export default function LandingPage({ initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode); // 'login' or 'register'
+
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPw, setLoginPw] = useState('');
+  const [loginErr, setLoginErr] = useState('');
+
+  // Register form state
+  const [regForm, setRegForm] = useState({ name: '', email: '', password: '', education: '', goal: '' });
+  const [regErr, setRegErr] = useState('');
+
+  const { login, register } = useAuth();
+  const nav = useNavigate();
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    setLoginErr('');
+    const r = login(loginEmail, loginPw);
+    if (r.error) setLoginErr(r.error);
+    else nav(r.user.knowledgeTestDone ? '/dashboard' : '/test');
+  };
+
+  const handleRegSubmit = (e) => {
+    e.preventDefault();
+    setRegErr('');
+    if (!regForm.education || !regForm.goal) {
+      setRegErr('Please select education level and learning goal');
+      return;
+    }
+    const r = register(regForm);
+    if (r.error) setRegErr(r.error);
+    else nav('/test');
+  };
+
+  return (
+    <div className="landing-page">
+      {/* Landing Navbar */}
+      <header className="landing-nav">
+        <div className="landing-brand">
+          <span className="brand-logo">⚛</span>
+          <span className="brand-title">QuantumLearn <span className="brand-badge">AI</span></span>
+        </div>
+        <div className="landing-nav-links">
+          <a href="#features">Features</a>
+          <a href="#simulators">Simulators</a>
+          <a href="#curriculum">Curriculum</a>
+          <a href="#auth-section" onClick={() => setMode('login')}>Sign In</a>
+        </div>
+        <div className="landing-nav-actions">
+          <button className="btn btn-secondary btn-sm" onClick={() => { setMode('login'); document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' }); }}>
+            Sign In
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => { setMode('register'); document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' }); }}>
+            Get Started Free
+          </button>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="landing-hero" id="hero">
+        <div className="landing-hero-grid">
+          {/* Left Text */}
+          <div className="hero-text-col fade-in">
+            <div className="hero-badge">
+              <span className="badge-sparkle">✨</span>
+              <span>AI Powered • 3D Visualizer • 24 Modules</span>
+            </div>
+            <h1 className="hero-headline">
+              Master Quantum Computing with <span className="gradient-text">Interactive AI</span>
+            </h1>
+            <p className="hero-subtext">
+              QuantumLearn AI is your personalized quantum learning environment. Drag-and-drop circuit builder, 3D Bloch sphere vector tracking, live Grover's search benchmarks, and 24 structured modules guided by a 24/7 AI Tutor.
+            </p>
+            <div className="hero-highlights">
+              <div className="highlight-item">
+                <span className="icon">📚</span>
+                <div>
+                  <strong>24 Structured Modules</strong>
+                  <p>Linear Algebra, Qiskit 1.x, Quantum Algorithms & QML</p>
+                </div>
+              </div>
+              <div className="highlight-item">
+                <span className="icon">🌐</span>
+                <div>
+                  <strong>3D Bloch Sphere & Circuit Builder</strong>
+                  <p>Real-time qubit probability distributions & unitary matrices</p>
+                </div>
+              </div>
+              <div className="highlight-item">
+                <span className="icon">🤖</span>
+                <div>
+                  <strong>AI-Powered Quantum Tutor</strong>
+                  <p>Step-by-step circuit breakdown using advanced neural reasoning models</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="hero-stats">
+              <div className="stat-item">
+                <span className="stat-num">24</span>
+                <span className="stat-lbl">Modules</span>
+              </div>
+              <div className="stat-divider" />
+              <div className="stat-item">
+                <span className="stat-num">100+</span>
+                <span className="stat-lbl">Tutorials</span>
+              </div>
+              <div className="stat-divider" />
+              <div className="stat-item">
+                <span className="stat-num">3D</span>
+                <span className="stat-lbl">Bloch Sphere</span>
+              </div>
+              <div className="stat-divider" />
+              <div className="stat-item">
+                <span className="stat-num">AI</span>
+                <span className="stat-lbl">Engine</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Auth Card */}
+          <div className="hero-auth-col fade-in" id="auth-section">
+            <div className="auth-card-container">
+              <div className="auth-card-header">
+                <div className="auth-tabs">
+                  <button
+                    type="button"
+                    className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
+                    onClick={() => setMode('login')}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
+                    onClick={() => setMode('register')}
+                  >
+                    Create Account
+                  </button>
+                </div>
+              </div>
+
+              {mode === 'login' ? (
+                <form className="auth-form" onSubmit={handleLoginSubmit}>
+                  <h3 className="auth-form-title">Welcome Back 👋</h3>
+                  <p className="auth-form-desc">Sign in to resume your quantum learning roadmap</p>
+
+                  {loginErr && <div className="tag tag-danger auth-err">{loginErr}</div>}
+
+                  <div className="form-group">
+                    <label className="form-label">Email Address</label>
+                    <input
+                      className="form-input"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={loginEmail}
+                      onChange={e => setLoginEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Password</label>
+                    <input
+                      className="form-input"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPw}
+                      onChange={e => setLoginPw(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <button className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 8 }} type="submit">
+                    Sign In →
+                  </button>
+                </form>
+              ) : (
+                <form className="auth-form" onSubmit={handleRegSubmit}>
+                  <h3 className="auth-form-title">Join QuantumLearn AI 🚀</h3>
+                  <p className="auth-form-desc">Create your profile and take your skill assessment</p>
+
+                  {regErr && <div className="tag tag-danger auth-err">{regErr}</div>}
+
+                  <div className="form-group">
+                    <label className="form-label">Full Name</label>
+                    <input
+                      className="form-input"
+                      placeholder="Alex Rivera"
+                      value={regForm.name}
+                      onChange={e => setRegForm({ ...regForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Email Address</label>
+                    <input
+                      className="form-input"
+                      type="email"
+                      placeholder="alex@example.com"
+                      value={regForm.email}
+                      onChange={e => setRegForm({ ...regForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Password</label>
+                    <input
+                      className="form-input"
+                      type="password"
+                      placeholder="•••••••• (min 6 chars)"
+                      value={regForm.password}
+                      onChange={e => setRegForm({ ...regForm, password: e.target.value })}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Education Level</label>
+                    <select
+                      className="form-select"
+                      value={regForm.education}
+                      onChange={e => setRegForm({ ...regForm, education: e.target.value })}
+                      required
+                    >
+                      <option value="">Select level...</option>
+                      {EDUCATION_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Learning Goal</label>
+                    <select
+                      className="form-select"
+                      value={regForm.goal}
+                      onChange={e => setRegForm({ ...regForm, goal: e.target.value })}
+                      required
+                    >
+                      <option value="">Select goal...</option>
+                      {GOALS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+
+                  <button className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: 8 }} type="submit">
+                    Create Account & Start Assessment →
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="landing-section" id="features">
+        <div className="section-header">
+          <div className="section-tag">PLATFORM CAPABILITIES</div>
+          <h2 className="section-title">Everything You Need to Master Quantum Computing</h2>
+          <p className="section-subtitle">Designed for students, researchers, and engineers transitioning into quantum technologies.</p>
+        </div>
+
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon" style={{ background: 'rgba(124, 77, 255, 0.1)', color: '#7c4dff' }}>⚡</div>
+            <h3>Quantum Circuit Builder</h3>
+            <p>Drag and drop H, X, Y, Z, CNOT, SWAP, and rotation gates on qubit wires. Observe live probability amplitudes and state collapse in real-time.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon" style={{ background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb' }}>🌐</div>
+            <h3>3D Bloch Sphere Visualizer</h3>
+            <p>Interactive 3D Bloch sphere rendered with WebGL. Drag rotation sliders to observe single-qubit state rotations in Hilbert space.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>🤖</div>
+            <h3>AI-Powered Quantum Tutor</h3>
+            <p>Powered by advanced neural reasoning models. Ask quantum physics questions, request step-by-step circuit breakdowns, and get instant debugging hints.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>🗺️</div>
+            <h3>Personalized Skill Roadmap</h3>
+            <p>Adaptive node-graph tailored to your background. Tracks proficiency across linear algebra, Qiskit, quantum algorithms, and hardware.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>⚔️</div>
+            <h3>Classical vs Quantum Race</h3>
+            <p>Live side-by-side search benchmark comparing classical O(N) linear search against quantum O(√N) Grover's algorithm search.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon" style={{ background: 'rgba(6, 182, 212, 0.1)', color: '#06b6d4' }}>🔬</div>
+            <h3>Quantum Lab & Hardware</h3>
+            <p>Execute jobs on pure JS statevector simulators, backend pulse configurations, and explore real quantum device topologies.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Simulators Showcase */}
+      <section className="landing-section dark-section" id="simulators">
+        <div className="sim-showcase-grid">
+          <div className="sim-showcase-content">
+            <div className="section-tag" style={{ color: '#38bdf8' }}>INTERACTIVE SIMULATORS</div>
+            <h2>Visualize Superposition & Entanglement in 3D</h2>
+            <p>
+              Quantum mechanics can feel abstract. QuantumLearn AI bridges the gap between linear algebra and physical intuition by rendering state vectors live as you build circuits.
+            </p>
+            <ul className="sim-checklist">
+              <li>✓ Dirac notation state evolution |ψ⟩ = α|0⟩ + β|1⟩</li>
+              <li>✓ Unitary matrix tensor product calculations</li>
+              <li>✓ Continuous Rx(θ), Ry(θ), Rz(θ) rotation sliders</li>
+              <li>✓ Multi-qubit partial trace density matrix reduction</li>
+            </ul>
+            <button className="btn btn-primary" onClick={() => { setMode('register'); document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' }); }}>
+              Try Simulators Now →
+            </button>
+          </div>
+
+          <div className="sim-preview-card">
+            <div className="sim-preview-header">
+              <div className="sim-dot red" />
+              <div className="sim-dot yellow" />
+              <div className="sim-dot green" />
+              <span className="sim-title">Quantum Circuit Engine v1.0</span>
+            </div>
+            <div className="sim-preview-body">
+              <div className="sim-wire-row">
+                <span className="wire-label">q[0]</span>
+                <div className="wire-gate purple">H</div>
+                <div className="wire-line" />
+                <div className="wire-gate pink">CNOT ⏺</div>
+                <div className="wire-line" />
+                <div className="wire-gate green">M 📊</div>
+              </div>
+              <div className="sim-wire-row">
+                <span className="wire-label">q[1]</span>
+                <div className="wire-line" style={{ width: 60 }} />
+                <div className="wire-gate pink">⊕ Target</div>
+                <div className="wire-line" />
+                <div className="wire-gate green">M 📊</div>
+              </div>
+
+              <div className="sim-output-box">
+                <div className="sim-out-title">StateVector Result:</div>
+                <div className="sim-out-ket">|ψ⟩ = 1/√2 |00⟩ + 1/√2 |11⟩ (Bell State |Φ⁺⟩)</div>
+                <div className="sim-out-probs">
+                  <span>|00⟩: 50.0%</span>
+                  <span>|11⟩: 50.0%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Curriculum Preview */}
+      <section className="landing-section" id="curriculum">
+        <div className="section-header">
+          <div className="section-tag">CURRICULUM HIGHLIGHTS</div>
+          <h2 className="section-title">24 Comprehensive Learning Modules</h2>
+          <p className="section-subtitle">Structured path from foundation physics to modern quantum machine learning.</p>
+        </div>
+
+        <div className="curriculum-grid">
+          {[
+            { num: 'Module 01', title: 'Foundations of Quantum Information', cat: 'Beginner', desc: 'Linear algebra, Hilbert space, complex vectors, and classical vs quantum bits.' },
+            { num: 'Module 07', title: 'Qiskit 1.x & Circuit Programming', cat: 'Intermediate', desc: 'Constructing QuantumCircuit objects, transpilation, jobs, and result execution.' },
+            { num: 'Module 09', title: 'Fundamental Quantum Algorithms', cat: 'Intermediate', desc: 'Deutsch-Jozsa, Bernstein-Vazirani, Simon, Teleportation, and Superdense Coding.' },
+            { num: 'Module 11', title: 'Quantum Machine Learning (QML)', cat: 'Advanced', desc: 'Data encoding, Parameterized Quantum Circuits (PQC), VQC, and Pennylane.' },
+            { num: 'Module 15', title: 'Quantum Fourier Transform (QFT)', cat: 'Advanced', desc: 'Phase estimation, Shor\'s factoring algorithm, and period finding mathematics.' },
+            { num: 'Module 24', title: 'Fault-Tolerant Quantum Computing', cat: 'Advanced', desc: 'Surface codes, stabilizer formalism, logical qubits, and error mitigation.' },
+          ].map((m, i) => (
+            <div key={i} className="curr-card">
+              <div className="curr-header">
+                <span className="curr-num">{m.num}</span>
+                <span className={`tag ${m.cat === 'Beginner' ? 'tag-success' : m.cat === 'Intermediate' ? 'tag-accent' : 'tag-warning'}`}>
+                  {m.cat}
+                </span>
+              </div>
+              <h3 className="curr-title">{m.title}</h3>
+              <p className="curr-desc">{m.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div className="footer-content">
+          <div className="footer-brand">
+            <div className="brand-logo" style={{ fontSize: '1.5rem', fontWeight: 800 }}>⚛ QuantumLearn AI</div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 6 }}>
+              Interactive AI-Powered Quantum Computing Learning Platform
+            </p>
+          </div>
+          <div className="footer-copy" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            © {new Date().getFullYear()} QuantumLearn AI • Built with React, Vite, AI Engine & WebGL
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

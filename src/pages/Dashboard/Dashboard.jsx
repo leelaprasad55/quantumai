@@ -1,0 +1,167 @@
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { useProgress } from '../../context/ProgressContext.jsx';
+import { MODULES, SKILL_LABELS, ACHIEVEMENTS } from '../../data/modules.js';
+import { getNextModule } from '../../utils/adaptive.js';
+import AITutor from '../../components/ai/AITutor.jsx';
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const { progress, skills, getOverallKnowledge } = useProgress();
+  const nav = useNavigate();
+  const knowledge = getOverallKnowledge();
+  const nextMod = progress && skills ? getNextModule(progress, skills, user?.goal) : null;
+  const completedCount = progress?.completedModules?.length || 0;
+
+  const weakSkills = skills ? Object.entries(skills).filter(([, v]) => v < 40 && v > 0).sort((a, b) => a[1] - b[1]).slice(0, 3) : [];
+  const strongSkills = skills ? Object.entries(skills).filter(([, v]) => v >= 60).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
+
+  const unlockedAchievements = progress ? ACHIEVEMENTS.filter(a => a.condition(progress)) : [];
+
+  const recentModules = MODULES.filter(m => progress?.completedModules?.includes(m.id)).slice(-3);
+
+  return (
+    <div className="page fade-in">
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: '2rem', marginBottom: 4 }}>Welcome back, {user?.name?.split(' ')[0]} 👋</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Goal: <span style={{ color: 'var(--accent-light)' }}>{user?.goal || 'Learning quantum computing'}</span></p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Streak</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800 }}>🔥 {progress?.streak || 0}</div>
+        </div>
+      </div>
+
+      {/* Solution Vision Card */}
+      <div className="card" style={{ background: 'linear-gradient(135deg, rgba(124, 77, 255, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%)', border: '1px solid var(--border-glass)', marginBottom: 28 }}>
+        <h3 style={{ color: 'var(--accent-light)', marginBottom: 8, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>✨</span> AI-Powered Adaptive Learning Platform
+        </h3>
+        <p style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+          Welcome to your personalized quantum learning environment. The platform uses a <strong>Quantum Skill Assessment</strong> to map your knowledge across math, programming, algorithms, and hardware, and constructs a <strong>personalized learning roadmap</strong>. Experience interactive lesson modules, official documentation courses, drag-and-drop <strong>quantum circuit building</strong>, and our integrated <strong>Quantum Lab</strong> for running both simulators and real quantum hardware.
+        </p>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-4" style={{ marginBottom: 28 }}>
+        <div className="stat-card">
+          <div className="stat-value">{knowledge}%</div>
+          <div className="stat-label">Quantum Knowledge</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{completedCount}/24</div>
+          <div className="stat-label">Modules Done</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{progress?.questionsAnswered || 0}</div>
+          <div className="stat-label">Questions Answered</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{unlockedAchievements.length}</div>
+          <div className="stat-label">Achievements</div>
+        </div>
+      </div>
+
+      <div className="grid grid-2" style={{ marginBottom: 28 }}>
+        {/* Continue Learning */}
+        <div className="card card-glow" style={{ cursor: 'pointer' }} onClick={() => nextMod && nav(`/modules/${nextMod.id}`)}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--accent-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>▶ Continue Learning</div>
+          {nextMod ? (
+            <>
+              <h3 style={{ marginBottom: 6 }}>Module {nextMod.id}: {nextMod.title}</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{nextMod.desc}</p>
+              <div style={{ marginTop: 16 }}>
+                <button className="btn btn-primary btn-sm">Continue →</button>
+              </div>
+            </>
+          ) : (
+            <div style={{ color: 'var(--success)', fontWeight: 700 }}>🎉 All recommended modules complete!</div>
+          )}
+        </div>
+
+        {/* Knowledge Radar placeholder */}
+        <div className="card">
+          <div style={{ fontSize: '0.75rem', color: 'var(--accent-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>📊 Top Skills</div>
+          {Object.entries(skills || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([skill, val]) => (
+            <div key={skill} className="skill-bar-item" style={{ marginBottom: 10 }}>
+              <div className="skill-bar-header">
+                <span className="skill-bar-label" style={{ fontSize: '0.8rem' }}>{SKILL_LABELS[skill]}</span>
+                <span className="skill-bar-value" style={{ fontSize: '0.8rem' }}>{val}%</span>
+              </div>
+              <div className="progress-bar" style={{ height: 6 }}>
+                <div className={`progress-fill ${val >= 70 ? 'success' : ''}`} style={{ width: `${val}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-3" style={{ marginBottom: 28 }}>
+        {/* Strong Areas */}
+        <div className="card">
+          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: '0.9rem' }}>💪 Strong Areas</div>
+          {strongSkills.length > 0 ? strongSkills.map(([s, v]) => (
+            <div key={s} className="tag tag-success" style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+              <span>✓ {SKILL_LABELS[s]}</span><span>{v}%</span>
+            </div>
+          )) : <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Complete the assessment to see your strengths</div>}
+        </div>
+
+        {/* Needs Improvement */}
+        <div className="card">
+          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: '0.9rem' }}>⚠ Needs Work</div>
+          {weakSkills.length > 0 ? weakSkills.map(([s, v]) => (
+            <div key={s} className="tag tag-warning" style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+              <span>⚠ {SKILL_LABELS[s]}</span><span>{v}%</span>
+            </div>
+          )) : <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No major weak areas yet — great job!</div>}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="card">
+          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: '0.9rem' }}>🚀 Quick Actions</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => nav('/roadmap')}>🗺️ View My Roadmap</button>
+            <button className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => nav('/circuit')}>⚡ Circuit Builder</button>
+            <button className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }} onClick={() => nav('/lab')}>🔬 Quantum Lab</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Modules */}
+      {recentModules.length > 0 && (
+        <div className="card" style={{ marginBottom: 28 }}>
+          <div style={{ fontWeight: 700, marginBottom: 16 }}>✅ Recently Completed</div>
+          <div className="grid grid-3">
+            {recentModules.map(m => (
+              <div key={m.id} className="module-card" onClick={() => nav(`/modules/${m.id}`)}>
+                <div className="module-num">Module {m.id}</div>
+                <div className="module-title">{m.title}</div>
+                <div className="tag tag-success" style={{ marginTop: 8 }}>✓ Completed</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Achievements */}
+      {unlockedAchievements.length > 0 && (
+        <div className="card">
+          <div style={{ fontWeight: 700, marginBottom: 16 }}>🏆 Recent Achievements</div>
+          <div className="grid grid-4">
+            {unlockedAchievements.slice(0, 4).map(a => (
+              <div key={a.id} className="achievement-badge unlocked">
+                <div className="achievement-icon">{a.icon}</div>
+                <div className="achievement-name">{a.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <AITutor />
+    </div>
+  );
+}
