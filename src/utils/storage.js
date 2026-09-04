@@ -294,7 +294,7 @@ export const storage = {
           preset_name: exp.preset,
           num_shots: exp.shots,
           noise_model: exp.noiseModel,
-          fidelity: exp.fidelity,
+          fidelity: Math.min(1, Math.max(0, Number(exp.fidelity || 0) / 100)),
           results: exp.results
         });
       if (error) console.warn('Supabase lab save warning (falling back to localStorage):', error.message);
@@ -307,6 +307,24 @@ export const storage = {
     } catch (e) { console.error('LocalStorage error saving lab exp:', e); }
 
     return item;
+  },
+
+  async incrementLabExperiments(userId) {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('user_progress')
+      .select('lab_experiments')
+      .eq('user_id', userId)
+      .single();
+    const current = Number(data?.lab_experiments || 0);
+    const { error } = await supabase
+      .from('user_progress')
+      .upsert({
+        user_id: userId,
+        lab_experiments: current + 1,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+    if (error) console.error('Error updating lab experiment count:', error);
   },
   
   async deleteLabExperiment(expId) {

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { storage } from '../utils/storage.js';
+import { storage, createDefaultProgress, createDefaultSkills } from '../utils/storage.js';
 import { useAuth } from './AuthContext.jsx';
 import { updateSkillsFromScore } from '../utils/adaptive.js';
 import { MODULES } from '../data/modules.js';
@@ -14,6 +14,8 @@ export function ProgressProvider({ children }) {
   useEffect(() => {
     let mounted = true;
     if (user) {
+      setProgress(prev => prev || createDefaultProgress());
+      setSkills(prev => prev || createDefaultSkills());
       Promise.all([
         storage.getProgress(user.id),
         storage.getSkills(user.id)

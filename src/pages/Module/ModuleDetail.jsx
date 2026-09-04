@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProgress } from '../../context/ProgressContext.jsx';
 import { MODULES } from '../../data/modules.js';
@@ -7,7 +7,7 @@ import { MODULE_QUESTIONS, getModuleAssessmentQuestions } from '../../data/quest
 import { getTopicQuestions } from '../../data/topicQuestions.js';
 import { getTopicCircuit } from '../../data/topicCircuits.js';
 import { getTopicFormula } from '../../data/topicFormulas.js';
-import { updateSkillsFromScore } from '../../utils/adaptive.js';
+import { checkPrerequisites, updateSkillsFromScore } from '../../utils/adaptive.js';
 import { simulateCircuit } from '../../utils/quantum.js';
 import AITutor from '../../components/ai/AITutor.jsx';
 
@@ -313,7 +313,7 @@ function ModuleAssessment({ mod, onComplete }) {
   const [current, setCurrent] = useState(0);
   const [done, setDone] = useState(false);
   const [score, setScore] = useState(0);
-  const { updateSkills, skills, completeModule } = useProgress();
+  const { updateSkills, skills, completeModule, recordTestScore } = useProgress();
 
   if (questions.length === 0) return (
     <div className="card" style={{ textAlign: 'center' }}>
@@ -336,6 +336,7 @@ function ModuleAssessment({ mod, onComplete }) {
       setScore(sc);
       const updSkills = updateSkillsFromScore(skills || {}, mod.skills, sc);
       updateSkills(updSkills);
+      recordTestScore(mod.id, sc, { answers: upd });
       completeModule(mod.id, sc);
       setDone(true);
     } else setCurrent(c => c + 1);
@@ -399,7 +400,13 @@ export default function ModuleDetail() {
   const topics = ALL_TOPICS[modId] || [];
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedTopic, setSelectedTopic] = useState(null);
-  const { progress } = useProgress();
+  const { progress, skills } = useProgress();
+
+  useEffect(() => {
+    if (!progress || !skills) return;
+    const prerequisiteState = checkPrerequisites(modId, skills, progress.completedModules || []);
+    if (!prerequisiteState.ok) nav('/modules', { replace: true });
+  }, [modId, nav, progress, skills]);
 
   if (!mod) return <div className="page"><h1>Module not found</h1></div>;
 

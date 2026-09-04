@@ -35,13 +35,14 @@ export function AuthProvider({ children }) {
   };
 
   // Ensure initial defaults exist in database
-  const ensureLocalDefaults = (userId) => {
-    if (!storage.getProgress(userId)?.completedModules) {
-      storage.setProgress(userId, createDefaultProgress());
+  const ensureLocalDefaults = async (userId) => {
+    const progress = await storage.getProgress(userId);
+    if (!progress?.completedModules) {
+      await storage.setProgress(userId, createDefaultProgress());
     }
-    const skills = storage.getSkills(userId);
+    const skills = await storage.getSkills(userId);
     if (!skills || (skills.mathematics === undefined)) {
-      storage.setSkills(userId, createDefaultSkills());
+      await storage.setSkills(userId, createDefaultSkills());
     }
   };
 
@@ -55,7 +56,7 @@ export function AuthProvider({ children }) {
         if (session?.user && mounted) {
           const fullUser = await fetchProfile(session.user);
           setUser(fullUser);
-          ensureLocalDefaults(fullUser.id);
+          await ensureLocalDefaults(fullUser.id);
         }
       } catch (err) {
         console.error('Auth init error:', err);
@@ -74,7 +75,7 @@ export function AuthProvider({ children }) {
         if (mounted) {
           setUser(fullUser);
           setLoading(false);
-          ensureLocalDefaults(fullUser.id);
+          await ensureLocalDefaults(fullUser.id);
         }
       } else if (event === 'SIGNED_OUT') {
         if (mounted) setUser(null);
@@ -108,7 +109,7 @@ export function AuthProvider({ children }) {
       await new Promise(r => setTimeout(r, 600));
       const fullUser = await fetchProfile(data.user);
       setUser(fullUser);
-      ensureLocalDefaults(fullUser.id);
+      await ensureLocalDefaults(fullUser.id);
       return { success: true, user: fullUser, isNewUser: true };
     }
 
@@ -126,7 +127,7 @@ export function AuthProvider({ children }) {
 
     const fullUser = await fetchProfile(data.user);
     setUser(fullUser);
-    ensureLocalDefaults(fullUser.id);
+    await ensureLocalDefaults(fullUser.id);
 
     return { success: true, user: fullUser };
   };

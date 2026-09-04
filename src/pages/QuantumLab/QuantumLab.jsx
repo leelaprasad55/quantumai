@@ -305,6 +305,7 @@ function QuantumLabInner() {
       results: { counts1: results.counts1, probs: results.probs }
     };
     await storage.insertLabExperiment(userId, newExp);
+    await storage.incrementLabExperiments(userId);
     const exps = await storage.getLabExperiments(userId);
     setExperiments(exps);
     setExpName('');
