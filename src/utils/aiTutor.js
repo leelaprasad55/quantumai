@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════
-//  Groq-Powered AI Quantum Tutor — with offline fallback
+//  AI Quantum Tutor — Client integration with Supabase Edge Function, Direct API Key & offline fallback
 // ═══════════════════════════════════════════════════════════════════
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
+import { supabase } from '../lib/supabaseClient.js';
 import { explainCircuit } from './quantum.js';
 
 // Fallback responses for offline / error scenarios
@@ -16,10 +15,77 @@ const FALLBACK_RESPONSES = {
   default: "Great question! I'm your AI quantum tutor. Ask me about any quantum computing topic — qubits, gates, circuits, algorithms, Qiskit, QML, or anything from your current module. I'm here to explain, give hints, and help you understand your mistakes.",
 };
 
+export function getActiveApiKey() {
+  const userKey = localStorage.getItem('user_ai_api_key') || localStorage.getItem('groq_api_key');
+  if (userKey && userKey.trim()) return userKey.trim();
+  const envKey = import.meta.env.VITE_GROQ_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_OPENAI_API_KEY;
+  if (envKey && envKey.trim()) return envKey.trim();
+  return '';
+}
+
+export function setActiveApiKey(key) {
+  if (key && key.trim()) {
+    localStorage.setItem('user_ai_api_key', key.trim());
+  } else {
+    localStorage.removeItem('user_ai_api_key');
+    localStorage.removeItem('groq_api_key');
+  }
+}
+
+async function callDirectGroqApi(apiKey, messages) {
+  const models = [
+    'qwen/qwen3.8-27b',
+    'qwen/qwen3.6-27b',
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'llama3-8b-8192'
+  ];
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.6,
+          max_tokens: 1024
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const rawContent = data.choices?.[0]?.message?.content;
+        if (rawContent) {
+          const cleaned = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+          if (cleaned) return cleaned;
+        }
+      } else {
+        const errorJson = await response.json().catch(() => ({}));
+        lastError = new Error(errorJson?.error?.message || `HTTP ${response.status}`);
+        console.warn(`Groq model ${model} returned error:`, lastError.message);
+      }
+    } catch (e) {
+      lastError = e;
+      console.warn(`Fetch exception with Groq model ${model}:`, e.message);
+    }
+  }
+
+  throw lastError || new Error('All Groq model endpoints failed.');
+}
+
 /**
  * Generate a rich structured offline AI explanation for a circuit
  */
 export function generateOfflineCircuitExplanation(ops, nQubits) {
+  if (!ops || ops.length === 0) return null;
   const sorted = [...ops].filter(o => o.gate !== 'M').sort((a, b) => a.col - b.col);
   if (sorted.length === 0) return null;
 
@@ -76,31 +142,10 @@ ${conceptsMarkdown}
 }
 
 /**
- * Build the system prompt for the Groq LLM
- */
-function buildSystemPrompt(currentModule, currentTopic) {
-  let context = '';
-  if (currentModule) context += `\nThe student is currently on Module ${currentModule}.`;
-  if (currentTopic) context += ` Topic: "${currentTopic}".`;
-
-  return `You are an expert AI quantum computing tutor embedded in "QuantumLearn", an interactive quantum learning platform.
-
-CRITICAL FORMATTING REQUIREMENTS:
-- ALWAYS format your response in clean, highly-structured Markdown.
-- Use clear section headers with relevant emojis (e.g. ### 🎯 Overview, ### ⚡ Step-by-Step, ### 💡 Key Insights, ### 💻 Code Example).
-- Use bold text (**concept**) to highlight key terms.
-- Use bullet points (- item) or numbered lists (1. item) for step-by-step explanations.
-- Use Dirac notation (|0⟩, |1⟩, |ψ⟩) when referring to quantum states.
-- Wrap Python/Qiskit code in fenced code blocks (\`\`\`python ... \`\`\`).
-- Keep responses engaging, structured, and easy to read.
-${context}`;
-}
-
-/**
- * Get a fallback response using keyword matching (used when API is unavailable)
+ * Get a fallback response using keyword matching (used when server/API is offline)
  */
 function getFallbackResponse(message, currentModule, currentTopic) {
-  const msg = message.toLowerCase();
+  const msg = (message || '').toLowerCase();
   let response = FALLBACK_RESPONSES.default;
 
   if (msg.includes('qubit')) response = FALLBACK_RESPONSES.qubit;
@@ -121,174 +166,106 @@ function getFallbackResponse(message, currentModule, currentTopic) {
   return response;
 }
 
-const CANDIDATE_MODELS = [
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-  'qwen/qwen3.6-27b',
-  'groq/compound',
-  'qwen/qwen3.8-27b',
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant'
-];
-
 /**
- * Clean AI response content (e.g. remove reasoning <think> tags)
- */
-function cleanResponseContent(text) {
-  if (!text) return '';
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-}
-
-/**
- * Send a message to Groq API and get an AI response
- * @param {string} userMessage - The user's message
- * @param {Array} chatHistory - Previous messages [{role: 'user'|'ai', text: string}]
- * @param {string|null} currentModule - Current module ID
- * @param {string|null} currentTopic - Current topic name
- * @returns {Promise<string>} AI response text
+ * Send a chat message via Supabase Edge Function (using Supabase secrets), Direct API Key, or offline fallback
  */
 export async function getGroqResponse(userMessage, chatHistory = [], currentModule = null, currentTopic = null) {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-
-  // If no API key configured, use fallback
-  if (!apiKey || apiKey === 'your_groq_api_key_here') {
-    return getFallbackResponse(userMessage, currentModule, currentTopic);
-  }
-
-  // Build messages array for the API
-  const messages = [
-    { role: 'system', content: buildSystemPrompt(currentModule, currentTopic) },
-  ];
-
-  // Include last 10 messages for context (to keep token usage reasonable)
-  const recentHistory = chatHistory.slice(-10);
-  for (const msg of recentHistory) {
-    messages.push({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.text,
+  // 1. Try Supabase Edge Function (uses GROQ_API_KEY secret configured in Supabase Dashboard)
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-tutor', {
+      body: {
+        mode: 'chat',
+        userMessage,
+        chatHistory,
+        currentModule,
+        currentTopic
+      }
     });
+
+    if (!error && data && data.text) {
+      return data.text;
+    }
+  } catch (err) {
+    console.warn('Supabase Edge Function invocation failed, falling back to direct API key:', err);
   }
 
-  // Add the current user message
-  messages.push({ role: 'user', content: userMessage });
-
-  let lastErrorStatus = null;
-
-  // Try candidate models in order until one succeeds
-  for (const model of CANDIDATE_MODELS) {
+  // 2. Try Direct Groq API Key if configured in client (.env or UI modal)
+  const apiKey = getActiveApiKey();
+  if (apiKey) {
     try {
-      const response = await fetch(GROQ_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.7,
-          max_tokens: 1024,
-          top_p: 0.9,
-          stream: false,
-        }),
-      });
+      const formattedHistory = chatHistory
+        .filter(m => m && m.text && m.text.trim())
+        .slice(-6)
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.text.trim()
+        }));
 
-      if (!response.ok) {
-        lastErrorStatus = response.status;
-        if (response.status === 401) {
-          return '⚠️ **API Key Invalid** — Please check your AI API key configuration in the environment file.';
-        }
-        console.warn(`Groq model ${model} failed with status ${response.status}. Trying next candidate...`);
-        continue;
-      }
+      const systemPrompt = `You are QuantumLearn AI, an expert, encouraging, interactive quantum computing tutor. Topic context: ${currentTopic || 'Quantum Computing'}. Use Dirac notation like |0⟩, |1⟩, |+⟩ where appropriate. Format answers cleanly in Markdown with concise code blocks if requested.`;
+      
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...formattedHistory,
+        { role: 'user', content: userMessage.trim() }
+      ];
 
-      const data = await response.json();
-      const rawText = data.choices?.[0]?.message?.content;
-      const cleaned = cleanResponseContent(rawText);
-
-      if (cleaned) {
-        return cleaned;
-      }
-    } catch (error) {
-      console.warn(`Groq request failed for model ${model}:`, error);
+      const directText = await callDirectGroqApi(apiKey, messages);
+      if (directText) return directText;
+    } catch (err) {
+      console.warn('Direct Groq API Key call failed:', err.message);
     }
   }
 
-  if (lastErrorStatus === 429) {
-    return '⏳ **Rate Limited** — Too many requests. Please wait a moment and try again.\n\n' + getFallbackResponse(userMessage, currentModule, currentTopic);
-  }
-
+  // 3. Smart offline fallback response
   return getFallbackResponse(userMessage, currentModule, currentTopic);
 }
 
-// Keep the sync version for backward compatibility
+// Sync version for backward compatibility
 export function getAIResponse(message, currentModule = null, currentTopic = null) {
   return getFallbackResponse(message, currentModule, currentTopic);
 }
 
 /**
- * Generate a real-time AI explanation of a quantum circuit using Groq API
+ * Generate a real-time AI explanation of a quantum circuit
  */
 export async function explainCircuitWithGroq(ops, nQubits) {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  if (!ops || ops.length === 0) return null;
 
-  const sorted = [...ops].filter(o => o.gate !== 'M').sort((a, b) => a.col - b.col);
-  if (sorted.length === 0) return null;
+  // 1. Try Supabase Edge Function (uses GROQ_API_KEY secret configured in Supabase)
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-tutor', {
+      body: {
+        mode: 'explain_circuit',
+        ops,
+        nQubits
+      }
+    });
 
-  const gateSeqStr = sorted.map((op, idx) => {
-    if (op.gate === 'CNOT') return `Step ${idx + 1}: CNOT (control: q[${op.control}], target: q[${op.target}])`;
-    if (op.gate === 'SWAP') return `Step ${idx + 1}: SWAP (q[${op.target}], q[${op.control}])`;
-    if (op.angle !== undefined) return `Step ${idx + 1}: ${op.gate}(${(op.angle * 180 / Math.PI).toFixed(0)}°) on q[${op.target}]`;
-    return `Step ${idx + 1}: ${op.gate} gate on q[${op.target}]`;
-  }).join('\n');
-
-  const prompt = `Explain the following ${nQubits}-qubit quantum circuit in an engaging, educational, and intuitive way:
-
-Gate Sequence:
-${gateSeqStr}
-
-Please structure your explanation using Markdown:
-- ### 🎯 Executive Summary (What does this circuit do?)
-- ### ⚡ Step-by-Step Quantum Mechanics (What happens physically & mathematically at each step?)
-- ### 🔬 Key Quantum Phenomena (Superposition, Entanglement, Phase Shift, Interference, etc.)
-- ### 💡 Real-World Applications & Next Steps`;
-
-  if (!apiKey || apiKey === 'your_groq_api_key_here') {
-    return generateOfflineCircuitExplanation(ops, nQubits);
+    if (!error && data && data.text) {
+      return data.text;
+    }
+  } catch (err) {
+    console.warn('Circuit explanation Edge Function failed, trying direct API key:', err);
   }
 
-  for (const model of CANDIDATE_MODELS) {
+  // 2. Try Direct Groq API Key
+  const apiKey = getActiveApiKey();
+  if (apiKey) {
     try {
-      const response = await fetch(GROQ_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert Quantum Computing AI Tutor embedded in QuantumLearn. You provide clear, beautiful, structured quantum circuit explanations in markdown.'
-            },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-        }),
-      });
-
-      if (!response.ok) continue;
-      const data = await response.json();
-      const rawText = data.choices?.[0]?.message?.content;
-      const cleaned = cleanResponseContent(rawText);
-      if (cleaned) return cleaned;
+      const offlineSummary = generateOfflineCircuitExplanation(ops, nQubits);
+      const systemPrompt = `You are QuantumLearn AI. Explain the given quantum circuit in depth with clear section headers (### Executive Summary, ### Quantum Transformations, ### Applications). Include exact state evolution in Dirac notation.`;
+      const userPrompt = `Circuit: ${nQubits} qubits. Gate sequence: ${JSON.stringify(ops)}.\nBase Analysis:\n${offlineSummary}`;
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ];
+      const directText = await callDirectGroqApi(apiKey, messages);
+      if (directText) return directText;
     } catch (err) {
-      console.warn(`Groq circuit explanation failed for model ${model}:`, err);
+      console.warn('Direct API Key explanation call failed:', err.message);
     }
   }
 
+  // 3. Fallback to rich offline explanation generator
   return generateOfflineCircuitExplanation(ops, nQubits);
 }
-

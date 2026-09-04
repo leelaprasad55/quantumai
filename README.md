@@ -191,9 +191,10 @@ npm run preview    # Preview the production build locally
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_GROQ_API_KEY` | Optional | Groq Cloud API key for the AI Tutor and Circuit Explainer. Get one at [console.groq.com/keys](https://console.groq.com/keys). If not set, the AI features gracefully degrade to keyword-matched offline responses. |
+| `VITE_SUPABASE_URL` | Yes | Supabase Project URL for authentication and canonical database operations. |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase Anon/Publishable Key for client-side API requests. |
 
-> **Note:** The `.env` file is already present in the project root. The AI Tutor will cycle through multiple models (GPT-OSS 120B → Qwen 3.6 → LLaMA 3.3 70B → etc.) until one responds successfully.
+> **Note:** The AI Tutor and AI Circuit Explainer execute via a server-side Supabase Edge Function (`ai-tutor`). The LLM API key (`GROQ_API_KEY`) is stored securely as a server-side secret in Supabase and is never exposed to the client. If the Edge Function is offline, the client automatically degrades to structured offline responses.
 
 ---
 

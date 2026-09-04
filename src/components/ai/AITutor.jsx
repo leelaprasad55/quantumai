@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { getGroqResponse } from '../../utils/aiTutor.js';
+import { getGroqResponse, getActiveApiKey, setActiveApiKey } from '../../utils/aiTutor.js';
 import { storage } from '../../utils/storage.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -91,6 +91,9 @@ export default function AITutor({ moduleId, topicName }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(getActiveApiKey());
+  const [keySavedToast, setKeySavedToast] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'ai', text: '👋 Hi! I\'m your AI quantum tutor. Ask me anything about quantum computing, request hints, or ask me to explain a concept!' }
   ]);
@@ -98,9 +101,18 @@ export default function AITutor({ moduleId, topicName }) {
   const lastAiMsgRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // Load chat history when opened
+  useEffect(() => {
+    if (user && open) {
+      storage.getChatHistory(user.id).then(hist => {
+        if (hist && hist.length > 0) {
+          setMessages(hist);
+        }
+      });
+    }
+  }, [user, open]);
+
   // Auto-scroll logic:
-  // When AI finishes responding, scroll to the top of the AI response so the user reads from the initial line.
-  // While user is typing/waiting, scroll to bottom to show prompt and typing indicator.
   useEffect(() => {
     if (!messages.length) return;
     const lastMsg = messages[messages.length - 1];
@@ -115,6 +127,13 @@ export default function AITutor({ moduleId, topicName }) {
     }
   }, [messages, loading]);
 
+  const saveApiKey = () => {
+    setActiveApiKey(apiKeyInput);
+    setShowKeyModal(false);
+    setKeySavedToast(true);
+    setTimeout(() => setKeySavedToast(false), 2000);
+  };
+
   const send = async () => {
     if (!input.trim() || loading) return;
     const userMsg = { role: 'user', text: input };
@@ -128,7 +147,10 @@ export default function AITutor({ moduleId, topicName }) {
       const aiMsg = { role: 'ai', text: aiText };
       const final = [...updatedWithUser, aiMsg];
       setMessages(final);
-      if (user) storage.setChatHistory(user.id, final);
+      if (user) {
+        storage.insertChatMessage(user.id, 'user', input);
+        storage.insertChatMessage(user.id, 'ai', aiText);
+      }
     } catch (err) {
       const errorMsg = { role: 'ai', text: '⚠️ Something went wrong. Please try again.' };
       setMessages(prev => [...prev, errorMsg]);
@@ -155,16 +177,47 @@ export default function AITutor({ moduleId, topicName }) {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             <span>AI Quantum Tutor</span>
-            <span style={{
-              fontSize: '0.6rem', fontWeight: 600, padding: '2px 6px',
-              background: 'rgba(37, 99, 235, 0.1)', color: 'var(--accent)',
-              borderRadius: 8
-            }}>AI TUTOR</span>
+            <button
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.62rem', padding: '2px 6px', height: 'auto', gap: 2 }}
+              onClick={() => setShowKeyModal(!showKeyModal)}
+              title="Configure Groq/LLM API Key"
+            >
+              🔑 {getActiveApiKey() ? 'API Key Active' : 'Configure API Key'}
+            </button>
           </div>
           {moduleId && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Module {moduleId}{topicName ? ` · ${topicName}` : ''}</div>}
         </div>
         <button className="btn btn-secondary btn-sm btn-icon" onClick={() => setOpen(false)}>✕</button>
       </div>
+
+      {showKeyModal && (
+        <div style={{ padding: 12, background: '#0f172a', borderBottom: '1px solid var(--border-glass)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-light)', marginBottom: 6 }}>
+            🔑 Enter Groq API Key (Optional)
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+            Paste your key from console.groq.com to enable live Llama 3.3 model responses. (Leave blank to use smart offline mode).
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="gsk_..."
+              value={apiKeyInput}
+              onChange={e => setApiKeyInput(e.target.value)}
+              style={{ fontSize: '0.78rem', padding: '4px 8px', flex: 1 }}
+            />
+            <button className="btn btn-primary btn-sm" onClick={saveApiKey}>Save</button>
+          </div>
+        </div>
+      )}
+
+      {keySavedToast && (
+        <div style={{ padding: '6px 12px', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', fontSize: '0.75rem', textAlign: 'center', fontWeight: 600 }}>
+          ✅ API Key saved!
+        </div>
+      )}
       <div className="chat-messages" ref={chatMessagesRef}>
         {messages.map((m, i) => (
           <div

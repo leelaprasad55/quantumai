@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useProgress } from '../../context/ProgressContext.jsx';
+import { storage } from '../../utils/storage.js';
 
 const NAV = [
   { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
@@ -15,14 +16,84 @@ const NAV = [
 ];
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { getOverallKnowledge } = useProgress();
   const navigate = useNavigate();
   const knowledge = getOverallKnowledge();
+  const [uploading, setUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar_url]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image must be smaller than 2MB");
+      return;
+    }
+    
+    setUploading(true);
+    const newUrl = await storage.uploadAvatar(user.id, file);
+    if (newUrl) {
+      updateUser({ avatar_url: newUrl });
+    } else {
+      alert("Failed to upload avatar.");
+    }
+    setUploading(false);
+  };
+
+  // Generate user initials for avatar fallback
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">⚛ QuantumLearn</div>
+
+      {/* User Profile Card */}
+      {user && (
+        <div className="sidebar-profile">
+          <div className="sidebar-avatar" onClick={() => document.getElementById('avatar-upload').click()} style={{ cursor: 'pointer', position: 'relative' }} title="Change Avatar">
+            <input id="avatar-upload" type="file" accept="image/png, image/jpeg, image/webp" style={{ display: 'none' }} onChange={handleAvatarChange} disabled={uploading} />
+            {uploading ? (
+              <div className="sidebar-avatar-fallback" style={{ fontSize: '0.8rem' }}>...</div>
+            ) : (user.avatar_url && !avatarError) ? (
+              <img src={user.avatar_url} alt={user.name} className="sidebar-avatar-img" onError={() => setAvatarError(true)} />
+            ) : (
+              <div className="sidebar-avatar-fallback">{getInitials(user.name)}</div>
+            )}
+            <div className="sidebar-avatar-status" />
+          </div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{user.name}</div>
+            <div className="sidebar-user-role">{user.isAdmin ? '⚙️ Admin' : '🎓 Student'}</div>
+          </div>
+          <div className="sidebar-user-badges">
+            <div className="sidebar-badge xp-badge" title="Total XP">
+              <span className="badge-icon">⚡</span>
+              <span className="badge-value">{user.total_xp || 0}</span>
+              <span className="badge-label">XP</span>
+            </div>
+            <div className="sidebar-badge streak-badge" title="Current Streak">
+              <span className="badge-icon">🔥</span>
+              <span className="badge-value">{user.current_streak || 0}</span>
+              <span className="badge-label">Days</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="sidebar-nav">
         {NAV.map(n => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
@@ -42,7 +113,7 @@ export default function Sidebar() {
           {knowledge}%
         </div>
         <div className="progress-bar"><div className="progress-fill" style={{ width: `${knowledge}%` }} /></div>
-        <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginTop: 12 }} onClick={() => { logout(); navigate('/login'); }}>
+        <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginTop: 12 }} onClick={handleLogout}>
           Sign Out
         </button>
       </div>

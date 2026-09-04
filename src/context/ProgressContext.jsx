@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext.jsx';
 import { updateSkillsFromScore } from '../utils/adaptive.js';
 import { MODULES } from '../data/modules.js';
 
-const ProgressContext = createContext(null);
+const ProgressContext = createContext({ progress: null, skills: null, getOverallKnowledge: () => 0 });
 
 export function ProgressProvider({ children }) {
   const { user } = useAuth();
@@ -12,58 +12,79 @@ export function ProgressProvider({ children }) {
   const [skills, setSkills] = useState(null);
 
   useEffect(() => {
+    let mounted = true;
     if (user) {
-      setProgress(storage.getProgress(user.id));
-      setSkills(storage.getSkills(user.id));
+      Promise.all([
+        storage.getProgress(user.id),
+        storage.getSkills(user.id)
+      ]).then(([p, s]) => {
+        if (mounted) {
+          setProgress(p);
+          setSkills(s);
+        }
+      });
+    } else {
+      setProgress(null);
+      setSkills(null);
     }
+    return () => { mounted = false; };
   }, [user]);
 
   const updateProgress = (updates) => {
-    if (!user) return;
+    if (!user || !progress) return;
     const p = { ...progress, ...updates, lastActive: new Date().toISOString() };
     storage.setProgress(user.id, p);
     setProgress(p);
   };
 
   const updateSkills = (updates) => {
-    if (!user) return;
+    if (!user || !skills) return;
     const s = { ...skills, ...updates };
     storage.setSkills(user.id, s);
     setSkills(s);
   };
 
   const completeTopic = (moduleId, topicId) => {
-    if (!user) return;
+    if (!user || !progress) return;
     const p = { ...progress };
     if (!p.completedTopics.includes(topicId)) {
       p.completedTopics.push(topicId);
     }
     p.lastActive = new Date().toISOString();
-    storage.setProgress(user.id, p);
-    storage.logActivity(user.id);
+    
+    // Update frontend state
     setProgress(p);
+    
+    // Update backend (fire and forget)
+    storage.setProgress(user.id, p);
+    storage.completeTopic(user.id, topicId, 100);
+    storage.logActivity(user.id);
   };
 
   const completeModule = (moduleId, score) => {
-    if (!user) return;
+    if (!user || !progress) return;
     const p = { ...progress };
     if (!p.completedModules.includes(moduleId)) {
       p.completedModules.push(moduleId);
     }
     p.moduleScores[moduleId] = score;
     p.lastActive = new Date().toISOString();
-    storage.setProgress(user.id, p);
-    storage.logActivity(user.id);
+    
     setProgress(p);
+    storage.setProgress(user.id, p);
+    storage.completeModule(user.id, moduleId, score);
+    storage.logActivity(user.id);
   };
 
   const recordTestScore = (moduleId, score, details) => {
-    if (!user) return;
+    if (!user || !progress) return;
     const p = { ...progress };
     p.testHistory.push({ moduleId, score, details, date: new Date().toISOString() });
     p.moduleScores[moduleId] = Math.max(p.moduleScores[moduleId] || 0, score);
-    storage.setProgress(user.id, p);
+    
     setProgress(p);
+    storage.setProgress(user.id, p);
+    storage.recordTestScore(user.id, moduleId, score, details);
   };
 
   // Real-time skill update from exercise completion
@@ -84,14 +105,15 @@ export function ProgressProvider({ children }) {
 
   // Complete a circuit puzzle
   const completePuzzle = (puzzleId, relatedSkills) => {
-    if (!user) return;
+    if (!user || !progress) return;
     storage.completePuzzle(user.id, puzzleId);
     const p = { ...progress };
     p.circuitsChallengesCompleted = (p.circuitsChallengesCompleted || 0) + 1;
     p.lastActive = new Date().toISOString();
+    
+    setProgress(p);
     storage.setProgress(user.id, p);
     storage.logActivity(user.id);
-    setProgress(p);
     // Update related skills
     if (relatedSkills && relatedSkills.length > 0) {
       updateSkillFromExercise(relatedSkills, 85);
@@ -115,4 +137,8 @@ export function ProgressProvider({ children }) {
   );
 }
 
-export const useProgress = () => useContext(ProgressContext);
+export const useProgress = () => {
+  const ctx = useContext(ProgressContext);
+  if (!ctx) return { progress: null, skills: null, getOverallKnowledge: () => 0, updateProgress: () => {}, updateSkills: () => {}, completeTopic: () => {}, completeModule: () => {}, recordTestScore: () => {}, updateSkillFromExercise: () => {}, trackGateUsage: () => {}, completePuzzle: () => {} };
+  return ctx;
+};

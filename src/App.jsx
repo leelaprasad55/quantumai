@@ -17,29 +17,81 @@ import AdminPanel from './pages/Admin/AdminPanel.jsx';
 import QuantumRace from './pages/QuantumRace/QuantumRace.jsx';
 
 function ProtectedRoute({ children, requireAdmin = false }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (requireAdmin && !user.isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
-function MainLayout() {
-  const { user } = useAuth();
-  const location = useLocation();
-  const isAuthPage = ['/', '/login', '/register', '/test'].includes(location.pathname);
+function LoadingScreen() {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexDirection: 'column', gap: '16px', background: 'var(--bg-primary)',
+    }}>
+      <div style={{ fontSize: '2.5rem' }}>⚛</div>
+      <div style={{
+        width: '40px', height: '40px', border: '3px solid var(--border-glass)',
+        borderTopColor: 'var(--accent)', borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+        Loading QuantumLearn...
+      </div>
+    </div>
+  );
+}
 
-  if (isAuthPage || !user) {
+function MainLayout() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  // Show loading screen while checking auth session
+  if (loading) return <LoadingScreen />;
+
+  const authPages = ['/', '/login', '/register'];
+  const isAuthPage = authPages.includes(location.pathname);
+
+  // If user is logged in and on an auth page → smart redirect
+  if (user && isAuthPage) {
+    // New user who hasn't done the knowledge assessment yet
+    if (!user.knowledgeTestDone) {
+      return <Navigate to="/test" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If not logged in, show auth pages only
+  if (!user) {
     return (
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/test" element={<ProtectedRoute><KnowledgeTest /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
 
+  // If user is logged in but hasn't done the knowledge test, force /test
+  // (unless they are already on /test)
+  if (!user.knowledgeTestDone && location.pathname !== '/test') {
+    return <Navigate to="/test" replace />;
+  }
+
+  // Knowledge test page — no sidebar
+  if (location.pathname === '/test') {
+    return (
+      <Routes>
+        <Route path="/test" element={<KnowledgeTest />} />
+        <Route path="*" element={<Navigate to="/test" replace />} />
+      </Routes>
+    );
+  }
+
+  // Main app with sidebar
   return (
     <div className="app-container">
       <Sidebar />

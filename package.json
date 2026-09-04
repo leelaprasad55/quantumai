@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.114.0",
     "chart.js": "^4.5.1",
     "katex": "^0.18.4",
     "react": "^19.1.0",

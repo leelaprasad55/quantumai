@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useProgress } from '../../context/ProgressContext.jsx';
 import { storage } from '../../utils/storage.js';
@@ -13,6 +13,60 @@ const BASIC_GATES = ['H','X','Y','Z','S','T','CNOT','SWAP','M'];
 const ROTATION_GATES = ['Rx','Ry','Rz'];
 const ALL_GATES = [...BASIC_GATES, ...ROTATION_GATES];
 
+function opsToQasm(ops, nQubits) {
+  let qasm = `OPENQASM 2.0;\ninclude "qelib1.inc";\n\nqreg q[${nQubits}];\ncreg c[${nQubits}];\n\n`;
+  ops.forEach(op => {
+    const g = op.gate.toLowerCase();
+    if (['h', 'x', 'y', 'z', 's', 't'].includes(g)) {
+      qasm += `${g} q[${op.target}];\n`;
+    } else if (g === 'cnot' || g === 'cx') {
+      qasm += `cx q[${op.control !== undefined ? op.control : 0}], q[${op.target}];\n`;
+    } else if (g === 'swap') {
+      qasm += `swap q[${op.control !== undefined ? op.control : 0}], q[${op.target}];\n`;
+    } else if (['rx', 'ry', 'rz'].includes(g)) {
+      qasm += `${g}(${(op.angle || Math.PI/2).toFixed(4)}) q[${op.target}];\n`;
+    } else if (g === 'm') {
+      qasm += `measure q[${op.target}] -> c[${op.target}];\n`;
+    }
+  });
+  return qasm;
+}
+
+function qasmToOps(qasmText) {
+  const lines = qasmText.split('\n');
+  let nQ = 2;
+  const newOps = [];
+  let colCounter = 0;
+  lines.forEach(line => {
+    const clean = line.trim();
+    const qregMatch = clean.match(/qreg\s+q\[(\d+)\]/i);
+    if (qregMatch) nQ = parseInt(qregMatch[1], 10);
+
+    const singleMatch = clean.match(/^(h|x|y|z|s|t)\s+q\[(\d+)\];/i);
+    if (singleMatch) {
+      newOps.push({ gate: singleMatch[1].toUpperCase(), target: parseInt(singleMatch[2], 10), col: colCounter++ });
+    }
+    const rotMatch = clean.match(/^(rx|ry|rz)\(([^)]+)\)\s+q\[(\d+)\];/i);
+    if (rotMatch) {
+      const gName = rotMatch[1].charAt(0).toUpperCase() + rotMatch[1].slice(1).toLowerCase();
+      newOps.push({ gate: gName, angle: parseFloat(rotMatch[2]), target: parseInt(rotMatch[3], 10), col: colCounter++ });
+    }
+    const cxMatch = clean.match(/^(cx|cnot)\s+q\[(\d+)\]\s*,\s*q\[(\d+)\];/i);
+    if (cxMatch) {
+      newOps.push({ gate: 'CNOT', control: parseInt(cxMatch[2], 10), target: parseInt(cxMatch[3], 10), col: colCounter++ });
+    }
+    const swapMatch = clean.match(/^swap\s+q\[(\d+)\]\s*,\s*q\[(\d+)\];/i);
+    if (swapMatch) {
+      newOps.push({ gate: 'SWAP', control: parseInt(swapMatch[1], 10), target: parseInt(swapMatch[2], 10), col: colCounter++ });
+    }
+    const mMatch = clean.match(/^measure\s+q\[(\d+)\]/i);
+    if (mMatch) {
+      newOps.push({ gate: 'M', target: parseInt(mMatch[1], 10), col: colCounter++ });
+    }
+  });
+  return { nQubits: Math.max(1, Math.min(5, nQ)), ops: newOps };
+}
+
 export default function CircuitBuilder() {
   const { user } = useAuth();
   const { trackGateUsage } = useProgress();
@@ -24,10 +78,52 @@ export default function CircuitBuilder() {
   const [history, setHistory] = useState([[]]);
   const [histIdx, setHistIdx] = useState(0);
   const [saveName, setSaveName] = useState('');
-  const [saved, setSaved] = useState(storage.getSavedCircuits(user?.id || '') || []);
+  const [saved, setSaved] = useState([]);
   const [showExplainer, setShowExplainer] = useState(false);
   const [rotAngle, setRotAngle] = useState(Math.PI / 2);
   const [selectedQubitForBloch, setSelectedQubitForBloch] = useState(0);
+  const [viewMode, setViewMode] = useState('visual'); // 'visual' | 'qasm'
+  const [qasmText, setQasmText] = useState('');
+  const [shareToast, setShareToast] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
+
+  // Load saved circuits & check URL query params for shared circuits
+  useEffect(() => {
+    storage.getSavedCircuits(user?.id).then(setSaved);
+    const params = new URLSearchParams(window.location.search);
+    const sharedData = params.get('circuit');
+    if (sharedData) {
+      try {
+        const decoded = JSON.parse(atob(sharedData));
+        if (decoded.nQubits && Array.isArray(decoded.ops)) {
+          setNQubits(decoded.nQubits);
+          setOps(decoded.ops);
+        }
+      } catch (e) { console.error('Failed to parse shared circuit', e); }
+    }
+  }, [user]);
+
+  // Keep QASM text updated when ops change
+  useEffect(() => {
+    setQasmText(opsToQasm(ops, nQubits));
+  }, [ops, nQubits]);
+
+  const handleQasmChange = (text) => {
+    setQasmText(text);
+    const parsed = qasmToOps(text);
+    if (parsed.ops.length >= 0) {
+      setNQubits(parsed.nQubits);
+      setOps(parsed.ops);
+    }
+  };
+
+  const copyShareLink = () => {
+    const data = btoa(JSON.stringify({ nQubits, ops }));
+    const url = `${window.location.origin}${window.location.pathname}?circuit=${data}`;
+    navigator.clipboard.writeText(url);
+    setShareToast(true);
+    setTimeout(() => setShareToast(false), 2500);
+  };
 
   const maxCols = Math.max(8, ops.reduce((m, o) => Math.max(m, o.col + 2), 8));
 
@@ -84,11 +180,10 @@ export default function CircuitBuilder() {
     } catch (e) { setResults({ error: e.message }); }
   };
 
-  const saveCircuit = () => {
+  const saveCircuit = async () => {
     if (!user || !saveName.trim()) return;
-    const circuits = storage.getSavedCircuits(user.id) || [];
-    circuits.push({ name: saveName, ops, nQubits, date: new Date().toISOString() });
-    storage.setSavedCircuits(user.id, circuits);
+    await storage.insertCircuit(user.id, saveName, nQubits, ops);
+    const circuits = await storage.getSavedCircuits(user.id);
     setSaved(circuits);
     setSaveName('');
   };
@@ -155,15 +250,42 @@ export default function CircuitBuilder() {
             </span>
           </div>
         </div>
-        {/* Qubit selector + Explain button */}
+        {/* Qubit selector + Mode Toggle + Share + Explain button */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, width: 60 }}>Qubits</span>
           {[1,2,3,4,5].map(n => (
             <button key={n} className={`btn btn-sm ${nQubits === n ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setNQubits(n); clear(); }}>{n}</button>
           ))}
+
+          <div style={{ marginLeft: 16, display: 'flex', gap: 4, background: 'var(--bg-glass)', padding: 3, borderRadius: 6, border: '1px solid var(--border-glass)' }}>
+            <button
+              className={`btn btn-sm ${viewMode === 'visual' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ border: 'none', padding: '4px 10px', fontSize: '0.75rem' }}
+              onClick={() => setViewMode('visual')}
+            >
+              🎨 Drag & Drop Visual Canvas
+            </button>
+            <button
+              className={`btn btn-sm ${viewMode === 'qasm' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ border: 'none', padding: '4px 10px', fontSize: '0.75rem' }}
+              onClick={() => setViewMode('qasm')}
+            >
+              💻 Live OpenQASM Text Editor
+            </button>
+          </div>
+
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={copyShareLink}
+            title="Copy direct shareable link for this circuit"
+          >
+            🔗 Share Circuit
+          </button>
+
           <button
             className="btn btn-sm"
-            style={{ marginLeft: 'auto', background: 'linear-gradient(135deg, #7c4dff, #448aff)', color: 'white', border: 'none', cursor: 'pointer' }}
+            style={{ background: 'linear-gradient(135deg, #7c4dff, #448aff)', color: 'white', border: 'none', cursor: 'pointer' }}
             onClick={() => setShowExplainer(true)}
             title="Get AI analysis of your circuit"
           >
@@ -172,52 +294,78 @@ export default function CircuitBuilder() {
         </div>
       </div>
 
-      {/* Circuit Canvas with probability badges */}
-      <div className="circuit-canvas" style={{ padding: 16, overflowX: 'auto', marginBottom: 20, minHeight: nQubits * 70 + 40 }}>
-        {Array.from({ length: nQubits }, (_, q) => (
-          <div key={q} style={{ display: 'flex', alignItems: 'center', height: 68, marginBottom: 4 }}>
-            <div style={{ width: 48, fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-secondary)', flexShrink: 0 }}>q[{q}]</div>
-            {/* Live probability badge */}
-            <div className="qubit-prob-badge" title={`|0⟩: ${qubitProbs[q].p0}%, |1⟩: ${qubitProbs[q].p1}%`}>
-              <span style={{ color: '#3b82f6' }}>|0⟩{qubitProbs[q].p0}%</span>
-              <span style={{ color: '#ef4444' }}>|1⟩{qubitProbs[q].p1}%</span>
-            </div>
-            <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-              {/* Wire */}
-              <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'var(--border-glass)', zIndex: 0 }} />
-              {/* Cells */}
-              <div style={{ display: 'flex', gap: 0, position: 'relative', zIndex: 1 }}>
-                {Array.from({ length: maxCols }, (_, c) => {
-                  const cell = cellOps(q, c);
-                  return (
-                    <div key={c}
-                      style={{ width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: dragGate ? 'crosshair' : 'default' }}
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={() => dropOnCell(q, c)}
-                    >
-                      {cell.map((op, i) => (
-                        <div key={i}
-                          className="circuit-gate-cell"
-                          style={{ background: `${GATE_COLORS[op.gate] || '#7c4dff'}15`, border: `2px solid ${GATE_COLORS[op.gate] || '#7c4dff'}`, color: GATE_COLORS[op.gate] || '#7c4dff' }}
-                          onClick={() => { const newOps = ops.filter(o => !(o.target === op.target && o.col === op.col && o.gate === op.gate)); pushHistory(newOps); }}
-                          title={`Remove ${op.gate} gate`}
-                        >
-                          {op.gate}{op.angle !== undefined ? `\n${(op.angle * 180 / Math.PI).toFixed(0)}°` : ''}{op.control !== undefined ? `\n↑${op.control}` : ''}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
+      {/* Main Builder Area: Visual Canvas vs Live QASM Code Editor */}
+      {viewMode === 'visual' ? (
+        <div className="circuit-canvas" style={{ padding: 16, overflowX: 'auto', marginBottom: 20, minHeight: nQubits * 70 + 40 }}>
+          {Array.from({ length: nQubits }, (_, q) => (
+            <div key={q} style={{ display: 'flex', alignItems: 'center', height: 68, marginBottom: 4 }}>
+              <div style={{ width: 48, fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-secondary)', flexShrink: 0 }}>q[{q}]</div>
+              {/* Live probability badge */}
+              <div className="qubit-prob-badge" title={`|0⟩: ${qubitProbs[q].p0}%, |1⟩: ${qubitProbs[q].p1}%`}>
+                <span style={{ color: '#3b82f6' }}>|0⟩{qubitProbs[q].p0}%</span>
+                <span style={{ color: '#ef4444' }}>|1⟩{qubitProbs[q].p1}%</span>
+              </div>
+              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                {/* Wire */}
+                <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'var(--border-glass)', zIndex: 0 }} />
+                {/* Cells */}
+                <div style={{ display: 'flex', gap: 0, position: 'relative', zIndex: 1 }}>
+                  {Array.from({ length: maxCols }, (_, c) => {
+                    const cell = cellOps(q, c);
+                    return (
+                      <div key={c}
+                        style={{ width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: dragGate ? 'crosshair' : 'default' }}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => dropOnCell(q, c)}
+                      >
+                        {cell.map((op, i) => (
+                          <div key={i}
+                            className="circuit-gate-cell"
+                            style={{ background: `${GATE_COLORS[op.gate] || '#7c4dff'}15`, border: `2px solid ${GATE_COLORS[op.gate] || '#7c4dff'}`, color: GATE_COLORS[op.gate] || '#7c4dff' }}
+                            onClick={() => { const newOps = ops.filter(o => !(o.target === op.target && o.col === op.col && o.gate === op.gate)); pushHistory(newOps); }}
+                            title={`Remove ${op.gate} gate`}
+                          >
+                            {op.gate}{op.angle !== undefined ? `\n${(op.angle * 180 / Math.PI).toFixed(0)}°` : ''}{op.control !== undefined ? `\n↑${op.control}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+          ))}
+          {ops.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 8, fontSize: '0.85rem' }}>
+              👆 Drag gates from the palette onto qubit wires to build your circuit
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h4 style={{ margin: 0, color: 'var(--accent)' }}>📝 Live Bi-Directional OpenQASM 2.0 Editor</h4>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Changes typed here automatically parse & sync to circuit state</span>
           </div>
-        ))}
-        {ops.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 8, fontSize: '0.85rem' }}>
-            👆 Drag gates from the palette onto qubit wires to build your circuit
-          </div>
-        )}
-      </div>
+          <textarea
+            className="form-input"
+            rows={12}
+            value={qasmText}
+            onChange={e => handleQasmChange(e.target.value)}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.88rem',
+              lineHeight: 1.6,
+              background: '#0f172a',
+              color: '#38bdf8',
+              borderRadius: 8,
+              padding: 16,
+              width: '100%',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+      )}
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
@@ -344,8 +492,25 @@ export default function CircuitBuilder() {
         )}
       </div>
 
-      {/* Explainer Drawer */}
-      {showExplainer && <CircuitExplainer ops={ops} nQubits={nQubits} onClose={() => setShowExplainer(false)} />}
+      {shareToast && (
+        <div className="tag tag-success" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000, padding: '12px 20px', borderRadius: 8, boxShadow: 'var(--shadow-lg)' }}>
+          🔗 Shareable Circuit Link Copied to Clipboard!
+        </div>
+      )}
+
+      {saveToast && (
+        <div className="tag tag-success" style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 1000, padding: '12px 20px', borderRadius: 8, boxShadow: 'var(--shadow-lg)' }}>
+          💾 Circuit Saved Successfully!
+        </div>
+      )}
+
+      {showExplainer && (
+        <CircuitExplainer
+          ops={ops}
+          nQubits={nQubits}
+          onClose={() => setShowExplainer(false)}
+        />
+      )}
 
       <AITutor />
     </div>
