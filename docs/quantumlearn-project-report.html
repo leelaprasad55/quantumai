@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>QuantumLearn AI - Project Report</title>
+<style>
+@page { size: A4; margin: 18mm 16mm; }
+:root { --ink:#18212b; --muted:#536273; --accent:#087f8c; --line:#d8e0e6; --soft:#eef7f7; --warn:#fff4df; --warnline:#e3a227; }
+* { box-sizing:border-box; }
+body { font-family: "Segoe UI", Arial, sans-serif; color:var(--ink); line-height:1.48; font-size:10.2pt; margin:0; }
+h1 { color:#075761; font-size:27pt; margin:0 0 6pt; }
+h2 { color:#075761; font-size:17pt; border-bottom:2px solid var(--accent); padding-bottom:4pt; margin:20pt 0 8pt; page-break-after:avoid; }
+h3 { color:#1c6870; font-size:12pt; margin:12pt 0 4pt; page-break-after:avoid; }
+p { margin:4pt 0 7pt; }
+ul, ol { margin-top:4pt; padding-left:20pt; }
+li { margin:2pt 0; }
+.cover { min-height:245mm; display:flex; flex-direction:column; justify-content:center; border-bottom:8px solid var(--accent); }
+.subtitle { color:var(--muted); font-size:15pt; margin-bottom:22pt; }
+.meta { color:var(--muted); font-size:10pt; }
+.note { background:var(--soft); border-left:4px solid var(--accent); padding:9pt 11pt; margin:8pt 0; }
+.warning { background:var(--warn); border-left:4px solid var(--warnline); padding:9pt 11pt; margin:8pt 0; }
+table { width:100%; border-collapse:collapse; margin:7pt 0 10pt; page-break-inside:avoid; }
+th { background:#dff1f2; text-align:left; color:#075761; }
+th, td { border:1px solid var(--line); padding:5pt 6pt; vertical-align:top; }
+code { font-family:Consolas, monospace; background:#f1f4f6; padding:1px 3px; border-radius:2px; }
+pre { background:#f1f4f6; padding:8pt; white-space:pre-wrap; border:1px solid var(--line); }
+.small { color:var(--muted); font-size:9pt; }
+.page-break { page-break-before:always; }
+.keep { page-break-inside:avoid; }
+</style>
+</head>
+<body>
+<section class="cover">
+<h1>QuantumLearn AI</h1>
+<div class="subtitle">Complete Project and Architecture Report</div>
+<p>A source-based explanation of the application, file structure, technology stack, runtime flow, data model, user journeys, and current engineering risks.</p>
+<p class="meta"><strong>Repository:</strong> leelaprasad55/quantumai<br><strong>Branch snapshot:</strong> main<br><strong>Latest pushed commit:</strong> 74317bc<br><strong>Report date:</strong> September 4, 2026</p>
+<div class="note"><strong>Executive summary:</strong> QuantumLearn AI is a React/Vite single-page quantum-computing learning platform. React renders the interface, Supabase manages identity and persistent data, a custom JavaScript engine simulates small quantum circuits locally, and a Supabase Edge Function connects the AI tutor to Groq.</div>
+</section>
+
+<h2>1. Project at a Glance</h2>
+<table><tr><th>Layer</th><th>Implementation</th></tr>
+<tr><td>Frontend</td><td>React 19 functional components and hooks</td></tr>
+<tr><td>Build</td><td>Vite 8 with the React plugin</td></tr>
+<tr><td>Navigation</td><td>React Router DOM 7</td></tr>
+<tr><td>Styling</td><td>Vanilla CSS with CSS variables and responsive layouts</td></tr>
+<tr><td>Authentication</td><td>Supabase Auth with email/password and Google OAuth</td></tr>
+<tr><td>Persistence</td><td>Supabase PostgreSQL, Storage, RPC functions, plus localStorage fallback</td></tr>
+<tr><td>AI</td><td>Groq through a Supabase Edge Function, direct fallback, and offline responses</td></tr>
+<tr><td>Quantum logic</td><td>Custom browser-side state-vector simulator</td></tr>
+<tr><td>Visualizations</td><td>Canvas Bloch sphere and Chart.js charts</td></tr></table>
+
+<h2>2. File-by-File Map</h2>
+<table><tr><th>Path</th><th>Responsibility</th></tr>
+<tr><td><code>index.html</code></td><td>HTML shell, metadata, fonts, KaTeX stylesheet, React root.</td></tr>
+<tr><td><code>package.json</code></td><td>Dependencies and scripts: dev, build, preview.</td></tr>
+<tr><td><code>vite.config.js</code></td><td>Vite and React plugin configuration.</td></tr>
+<tr><td><code>src/main.jsx</code></td><td>React entry point, StrictMode, BrowserRouter, global CSS.</td></tr>
+<tr><td><code>src/App.jsx</code></td><td>Providers, routes, auth guards, loading screen, sidebar shell.</td></tr>
+<tr><td><code>src/styles/index.css</code></td><td>Global dark glassmorphic theme, layout, forms, animations, circuit UI.</td></tr>
+<tr><td><code>src/context/AuthContext.jsx</code></td><td>Registration, login, OAuth, session restoration, profile updates, logout.</td></tr>
+<tr><td><code>src/context/ProgressContext.jsx</code></td><td>Loads progress/skills and exposes completion, scoring, and analytics actions.</td></tr>
+<tr><td><code>src/lib/supabaseClient.js</code></td><td>Creates the Supabase browser client from environment variables.</td></tr>
+<tr><td><code>src/utils/storage.js</code></td><td>Supabase data-access wrapper for progress, circuits, labs, chat, avatars, and admin data.</td></tr>
+<tr><td><code>src/utils/quantum.js</code></td><td>Complex arithmetic, gates, state vectors, measurement, Bloch math, circuit explanation.</td></tr>
+<tr><td><code>src/utils/adaptive.js</code></td><td>Knowledge scoring, skill updates, prerequisite checks, personalized roadmap generation.</td></tr>
+<tr><td><code>src/utils/aiTutor.js</code></td><td>Edge Function call, direct Groq fallback, circuit explanation, offline tutor responses.</td></tr>
+<tr><td><code>src/components/layout/Sidebar.jsx</code></td><td>Authenticated navigation, score display, avatar upload, logout.</td></tr>
+<tr><td><code>src/components/ai/AITutor.jsx</code></td><td>Floating tutor UI, chat history, context, response rendering.</td></tr>
+<tr><td><code>src/components/BlochSphere.jsx</code></td><td>Canvas 2D animated Bloch sphere with mouse rotation.</td></tr>
+<tr><td><code>src/components/CircuitExplainer.jsx</code></td><td>Four-tab circuit analysis and AI explanation drawer.</td></tr>
+<tr><td><code>src/components/CircuitPuzzle.jsx</code></td><td>Reusable target-state circuit puzzle component; currently not connected to the main flow.</td></tr>
+<tr><td><code>src/pages/Auth/AuthPages.jsx</code></td><td>Login, registration, education, goal, and OAuth forms.</td></tr>
+<tr><td><code>src/pages/KnowledgeTest/KnowledgeTest.jsx</code></td><td>Initial skill assessment and onboarding completion.</td></tr>
+<tr><td><code>src/pages/Dashboard/Dashboard.jsx</code></td><td>Home dashboard with progress, next module, skills, and quick actions.</td></tr>
+<tr><td><code>src/pages/Roadmap/Roadmap.jsx</code></td><td>Personalized module path visualization.</td></tr>
+<tr><td><code>src/pages/Module/ModuleList.jsx</code></td><td>24-module catalogue and completion/prerequisite presentation.</td></tr>
+<tr><td><code>src/pages/Module/ModuleDetail.jsx</code></td><td>Topics, learning links, formulas, quizzes, challenges, and module assessment.</td></tr>
+<tr><td><code>src/pages/CircuitBuilder/CircuitBuilder.jsx</code></td><td>Interactive circuit editor, simulator, save/load, share, measurement, explain.</td></tr>
+<tr><td><code>src/pages/QuantumLab/QuantumLab.jsx</code></td><td>Preset/custom experiments, noise, histograms, code generation, saved labs.</td></tr>
+<tr><td><code>src/pages/QuantumRace/QuantumRace.jsx</code></td><td>Classical versus quantum algorithm animation and comparison.</td></tr>
+<tr><td><code>src/pages/SkillMap/SkillMap.jsx</code></td><td>14-skill radar visualization.</td></tr>
+<tr><td><code>src/pages/Achievements/Achievements.jsx</code></td><td>Badge gallery based on progress conditions.</td></tr>
+<tr><td><code>src/pages/Admin/AdminPanel.jsx</code></td><td>Users, cohorts, modules, analytics, activity, gate usage, reset controls.</td></tr>
+</table>
+
+<h2>3. Static Data Files</h2>
+<ul>
+<li><code>src/data/modules.js</code>: 24 modules, categories, prerequisites, goals, education levels, skills, achievements.</li>
+<li><code>src/data/topics.js</code>, <code>topics2.js</code>, <code>topics3.js</code>, <code>topics4.js</code>: topic records for modules 1-24.</li>
+<li><code>src/data/allTopics.js</code>: combined topic index.</li>
+<li><code>src/data/questions.js</code>: initial knowledge-test question bank.</li>
+<li><code>src/data/topicQuestions.js</code>: module/topic quiz questions and fallback question generation.</li>
+<li><code>src/data/topicCircuits.js</code>: topic circuit challenge definitions.</li>
+<li><code>src/data/topicFormulas.js</code>: formula lookup content.</li>
+</ul>
+
+<h2>4. Runtime Architecture</h2>
+<pre>Browser loads index.html
+  -> src/main.jsx mounts React
+  -> BrowserRouter enables routes
+  -> AuthProvider restores Supabase session
+  -> ProgressProvider loads progress and skills
+  -> App selects public or authenticated layout
+  -> Page components call contexts, utilities, and Supabase
+  -> React state updates the interface
+  -> Supabase persists user data</pre>
+
+<h2>5. Authentication Flow</h2>
+<ol>
+<li>Registration calls <code>supabase.auth.signUp()</code> with name, education, goal, and avatar metadata.</li>
+<li>A database trigger creates a profile with the safe default role <code>student</code>.</li>
+<li>Login calls <code>signInWithPassword()</code>; Google login uses Supabase OAuth.</li>
+<li><code>AuthContext</code> fetches the matching profile and creates the frontend user object.</li>
+<li>New users are redirected to <code>/test</code>; assessed users go to <code>/dashboard</code>.</li>
+<li>Logout ends the Supabase session and clears local user state.</li>
+</ol>
+
+<h2>6. Learning and Progress Flow</h2>
+<pre>Register/login
+  -> knowledge assessment
+  -> skill percentages calculated
+  -> personalized roadmap generated
+  -> module opened
+  -> topic learned and marked complete
+  -> topic_progress saved
+  -> module assessment submitted
+  -> module_progress saved
+  -> activity and skill data updated
+  -> dashboard, roadmap, skill map, achievements refresh</pre>
+
+<h2>7. Adaptive Learning</h2>
+<p><code>generateRoadmap()</code> averages the 14 skills. Beginners below 20 receive the full 24-module path. More advanced learners receive modules related to weak skills and their selected goal, with completed modules removed and prerequisites considered. Module 24 is always appended.</p>
+
+<h2>8. Quantum Circuit Flow</h2>
+<pre>User places gates
+  -> operation list changes
+  -> simulateCircuit() initializes |000...0>
+  -> operations are applied as matrix-vector multiplications
+  -> final amplitudes become probabilities
+  -> charts, Bloch sphere, state text, and measurements update
+  -> optional save, share, gate analytics, or AI explanation</pre>
+<p>The simulator is local JavaScript. It supports H, X, Y, Z, S, T, Rx, Ry, Rz, CNOT, SWAP, CZ, measurement, tensor products, reduced states, and global-phase-aware comparisons.</p>
+
+<h2>9. AI Tutor Flow</h2>
+<pre>Student asks question
+  -> Supabase ai-tutor Edge Function
+  -> server-side GROQ_API_KEY
+  -> Groq model fallback chain
+  -> Markdown response
+  -> chat message persisted
+  -> if unavailable: direct Groq key, then offline keyword response</pre>
+<p>The circuit explainer uses the same server path and can fall back to a local structured explanation generated from the simulator.</p>
+
+<h2>10. Quantum Lab and Race</h2>
+<p>The Quantum Lab supports educational presets such as Bell, GHZ, W, teleportation, Grover, QPE, and Deutsch-Jozsa, as well as noise models, histograms, fidelity, and code generation for Qiskit, PennyLane, Cirq, and OpenQASM.</p>
+<p>The hardware dispatch screen is a local simulation. It creates a fake job ID and uses timers; it does not submit to IBM Quantum, Azure Quantum, Amazon Braket, or another real provider.</p>
+<p>The Quantum Race animates classical and quantum complexity comparisons for Grover, Shor, Deutsch-Jozsa, Simon, HHL, and QFT.</p>
+
+<h2>11. Database Model</h2>
+<table><tr><th>Table</th><th>Purpose</th></tr>
+<tr><td><code>profiles</code></td><td>Identity profile, role, XP, streak, knowledge score.</td></tr>
+<tr><td><code>user_progress</code></td><td>General counters, current module/topic, time, experiments.</td></tr>
+<tr><td><code>user_skills</code></td><td>Fourteen skill percentages.</td></tr>
+<tr><td><code>module_progress</code>, <code>topic_progress</code></td><td>Completion records and scores.</td></tr>
+<tr><td><code>test_attempts</code></td><td>Assessment history.</td></tr>
+<tr><td><code>saved_circuits</code>, <code>lab_experiments</code></td><td>Saved interactive work.</td></tr>
+<tr><td><code>activity_log</code>, <code>gate_usage</code></td><td>User and global analytics.</td></tr>
+<tr><td><code>puzzle_progress</code></td><td>Circuit challenge completion.</td></tr>
+<tr><td><code>ai_chat_messages</code></td><td>AI conversation history.</td></tr>
+</table>
+<p><code>supabase/migrations/01_init_schema.sql</code> creates the schema. <code>02_rls_policies.sql</code> enables Row Level Security. <code>03_admin_rpcs.sql</code> contains protected admin functions. <code>04_user_rpcs.sql</code> contains narrow user functions. <code>05_add_constraints.sql</code> adds data constraints. <code>06_avatar_storage.sql</code> configures avatar storage.</p>
+
+<h2>12. Security and Engineering Risks</h2>
+<div class="warning"><strong>Credential warning:</strong> A live Groq key was previously found in the environment template during project preparation. It was removed from the tracked template, but the key must be revoked and replaced. Any <code>VITE_*</code> value is visible in the browser bundle, so Groq secrets must live only in Supabase Edge Function secrets.</div>
+<ul>
+<li>AI responses are rendered with <code>dangerouslySetInnerHTML</code> without a proper Markdown sanitizer.</li>
+<li>The AI Edge Function uses wildcard CORS and has no explicit caller authorization or rate limiting.</li>
+<li>User-entered API keys are stored in localStorage.</li>
+<li>Lab fidelity is displayed as 0-100 but the database constraint expects 0-1.</li>
+<li>Lab experiment counters, XP, streaks, and some question counters are not consistently incremented.</li>
+<li>Some quizzes display scores without persisting them through <code>recordTestScore()</code>.</li>
+<li>Prerequisites are shown in the UI but are not fully enforced for direct module URLs.</li>
+<li>The reusable circuit puzzle is not connected to the main application flow.</li>
+<li>The topic circuit challenge has operation/amplitude handling inconsistencies.</li>
+<li>Some admin cohort and gradebook data is generated in the frontend and is not durable.</li>
+<li>There are no automated tests, lint checks, or type checks.</li>
+</ul>
+
+<h2>13. Documentation Mismatch</h2>
+<p>The current <code>README.md</code> describes an older version of the application. It says persistence is localStorage-only and describes real hardware, WebGL, older authentication, and other behavior that does not match the current source. The source implementation and Supabase migrations should be treated as authoritative until the README is rewritten.</p>
+
+<h2>14. Validation Status</h2>
+<p>The production build completed successfully with <code>npm run build</code>. Vite reported only deprecation and bundle-size warnings. No automated runtime or integration tests are currently configured.</p>
+
+<h2>15. Recommended Next Steps</h2>
+<ol>
+<li>Revoke and rotate the exposed Groq credential.</li>
+<li>Remove direct browser Groq access and use only the secured Edge Function.</li>
+<li>Add Markdown parsing with HTML sanitization.</li>
+<li>Fix fidelity unit conversion and lab experiment counting.</li>
+<li>Repair assessment, XP, streak, puzzle, and question-counter persistence.</li>
+<li>Enforce prerequisites in route/module access.</li>
+<li>Integrate and test the circuit puzzle flow.</li>
+<li>Add unit and integration tests for authentication, progress, simulator math, and AI fallback behavior.</li>
+<li>Rewrite the README to match the Supabase-backed implementation.</li>
+</ol>
+
+<p class="small">This report was generated from the current workspace source, configuration, migrations, and build status. It describes implemented behavior and explicitly labels simulated or incomplete features.</p>
+</body>
+</html>

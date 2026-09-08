@@ -50,7 +50,10 @@ export default function KnowledgeTest() {
           ))}
         </div>
         <button className="btn btn-primary btn-lg" onClick={() => setPhase('test')}>Start Assessment →</button>
-        <button className="btn btn-secondary btn-sm" style={{ marginTop: 12, display: 'block', marginLeft: 'auto', marginRight: 'auto' }} onClick={() => { updateUser({ knowledgeTestDone: true, knowledgeScore: 0 }); nav('/dashboard'); }}>Skip (I'm a complete beginner)</button>
+        <button className="btn btn-secondary btn-sm" style={{ marginTop: 12, display: 'block', marginLeft: 'auto', marginRight: 'auto' }} onClick={async () => {
+          await updateUser({ knowledgeTestDone: true, knowledgeScore: 0 });
+          nav('/dashboard');
+        }}>Skip (I'm a complete beginner)</button>
       </div>
     </div>
   );

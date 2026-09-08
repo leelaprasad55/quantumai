@@ -1,5 +1,19 @@
 import { supabase } from '../lib/supabaseClient.js';
 
+const getUserLocalStorageKey = (baseKey, userId) => userId ? `${baseKey}_${userId}` : `${baseKey}_guest`;
+
+const readUserLocalStorage = (baseKey, userId) => {
+  try {
+    return JSON.parse(localStorage.getItem(getUserLocalStorageKey(baseKey, userId)) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const writeUserLocalStorage = (baseKey, userId, value) => {
+  localStorage.setItem(getUserLocalStorageKey(baseKey, userId), JSON.stringify(value));
+};
+
 export const storage = {
   // ----------------------------------------------------
   // PROGRESS & SKILLS
@@ -195,10 +209,8 @@ export const storage = {
         supabaseCircuits = data.map(c => ({ id: c.id, name: c.name, nQubits: c.num_qubits, ops: c.operations, date: c.created_at }));
       }
     }
-    let localCircuits = [];
-    try {
-      localCircuits = JSON.parse(localStorage.getItem('saved_circuits') || '[]');
-    } catch { localCircuits = []; }
+
+    const localCircuits = readUserLocalStorage('saved_circuits', userId);
 
     const map = new Map();
     [...supabaseCircuits, ...localCircuits].forEach(c => {
@@ -229,9 +241,9 @@ export const storage = {
     }
 
     try {
-      const existing = JSON.parse(localStorage.getItem('saved_circuits') || '[]');
+      const existing = readUserLocalStorage('saved_circuits', userId);
       const updated = [item, ...existing.filter(c => c.name !== name)];
-      localStorage.setItem('saved_circuits', JSON.stringify(updated));
+      writeUserLocalStorage('saved_circuits', userId, updated);
     } catch (e) { console.error('LocalStorage error saving circuit:', e); }
 
     return item;
@@ -259,10 +271,7 @@ export const storage = {
       }
     }
 
-    let localExps = [];
-    try {
-      localExps = JSON.parse(localStorage.getItem('lab_experiments') || '[]');
-    } catch { localExps = []; }
+    const localExps = readUserLocalStorage('lab_experiments', userId);
 
     const map = new Map();
     [...supabaseExps, ...localExps].forEach(e => {
@@ -301,9 +310,9 @@ export const storage = {
     }
 
     try {
-      const existing = JSON.parse(localStorage.getItem('lab_experiments') || '[]');
+      const existing = readUserLocalStorage('lab_experiments', userId);
       const updated = [item, ...existing.filter(e => e.name !== exp.name)];
-      localStorage.setItem('lab_experiments', JSON.stringify(updated));
+      writeUserLocalStorage('lab_experiments', userId, updated);
     } catch (e) { console.error('LocalStorage error saving lab exp:', e); }
 
     return item;
@@ -327,14 +336,14 @@ export const storage = {
     if (error) console.error('Error updating lab experiment count:', error);
   },
   
-  async deleteLabExperiment(expId) {
+  async deleteLabExperiment(expId, userId) {
     if (expId) {
       await supabase.from('lab_experiments').delete().eq('id', expId);
     }
     try {
-      const existing = JSON.parse(localStorage.getItem('lab_experiments') || '[]');
+      const existing = readUserLocalStorage('lab_experiments', userId);
       const updated = existing.filter(e => e.id !== expId);
-      localStorage.setItem('lab_experiments', JSON.stringify(updated));
+      writeUserLocalStorage('lab_experiments', userId, updated);
     } catch (e) { console.error('LocalStorage error deleting lab exp:', e); }
   },
 
