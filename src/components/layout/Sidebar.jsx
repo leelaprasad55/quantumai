@@ -20,6 +20,10 @@ export default function Sidebar() {
   const { getOverallKnowledge } = useProgress();
   const navigate = useNavigate();
   const knowledge = getOverallKnowledge();
+  const instructorNav = [
+    { to: '/instructor', icon: '🎓', label: 'Instructor Dashboard' },
+  ];
+  const navigation = user?.isInstructor ? instructorNav : NAV;
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
@@ -77,7 +81,7 @@ export default function Sidebar() {
           </div>
           <div className="sidebar-user-info">
             <div className="sidebar-user-name">{user.name}</div>
-            <div className="sidebar-user-role">{user.isAdmin ? '⚙️ Admin' : '🎓 Student'}</div>
+            <div className="sidebar-user-role">{user.isAdmin ? '⚙️ Admin' : user.isInstructor ? '🎓 Instructor' : '🎓 Student'}</div>
           </div>
           <div className="sidebar-user-badges">
             <div className="sidebar-badge xp-badge" title="Total XP">
@@ -95,7 +99,7 @@ export default function Sidebar() {
       )}
 
       <nav className="sidebar-nav">
-        {NAV.map(n => (
+        {navigation.map(n => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <span className="icon">{n.icon}</span>
             <span>{n.label}</span>
@@ -108,11 +112,16 @@ export default function Sidebar() {
         )}
       </nav>
       <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-glass)' }}>
+        {user?.isInstructor ? <>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Instructor workspace</div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>SIH 2026 Demo</div>
+        </> : <>
         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Knowledge Score</div>
         <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent)', marginBottom: 8 }}>
           {knowledge}%
         </div>
         <div className="progress-bar"><div className="progress-fill" style={{ width: `${knowledge}%` }} /></div>
+        </>}
         <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginTop: 12 }} onClick={handleLogout}>
           Sign Out
         </button>
