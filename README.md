@@ -70,7 +70,7 @@ All user data (progress, skills, achievements, circuits, chat history) is persis
 
 ## 🛠 Tech Stack
 
-> The Flask/Jinja migration is now the deployable application entry point. The original React/Vite implementation remains in `src/` as a reference while the remaining interactive pages are ported.
+> The Flask/Jinja migration is now the deployable application entry point. All application routes are server-rendered through Flask; the original React/Vite implementation remains in `src/` as a reference during cleanup.
 
 | Layer | Technology |
 |---|---|
@@ -204,7 +204,7 @@ Render uses the persistent disk at `/var/data` for `quantumlearn.db`. Set `SECRE
 | `DATABASE_PATH` | No | SQLite path. Defaults to `instance/quantumlearn.db`; Render sets `/var/data/quantumlearn.db`. |
 | `GROQ_API_KEY` | Optional | Enables the production AI tutor provider adapter. |
 
-The old Supabase variables are used only by the React reference implementation under `src/`; the Flask application does not require Supabase to start.
+The old Supabase variables and source files are retained only as a React reference under `src/` and `supabase/`; the Flask application does not require Supabase to start.
 
 ---
 
