@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block title %}Not found | QuantumLearn{% endblock %}{% block content %}<section class="empty"><h1>That page is not in the circuit.</h1><a class="button primary" href="{{ url_for('dashboard') if current_user else url_for('login') }}">Return home</a></section>{% endblock %}

@@ -70,6 +70,8 @@ All user data (progress, skills, achievements, circuits, chat history) is persis
 
 ## 🛠 Tech Stack
 
+> The Flask/Jinja migration is now the deployable application entry point. The original React/Vite implementation remains in `src/` as a reference while the remaining interactive pages are ported.
+
 | Layer | Technology |
 |---|---|
 | **Framework** | React 19.1 (JSX, functional components, hooks) |
@@ -82,6 +84,9 @@ All user data (progress, skills, achievements, circuits, chat history) is persis
 | **AI Backend** | Groq Cloud API (multi-model fallback: GPT-OSS, Qwen, LLaMA) |
 | **Persistence** | Browser localStorage (prefixed `ql_`) |
 | **Quantum Engine** | Custom pure-JS quantum simulator (complex arithmetic, tensor products, state vectors) |
+| **Server** | Flask 3.1 with Jinja templates and signed sessions |
+| **Database** | SQLite locally and on Render persistent disk |
+| **Production server** | Gunicorn |
 
 ---
 
@@ -156,8 +161,8 @@ quantumlearn-ai/
 
 ### Prerequisites
 
-- **Node.js** ≥ 18.x
-- **npm** ≥ 9.x
+- **Python** ≥ 3.10
+- **pip**
 
 ### Installation
 
@@ -166,24 +171,28 @@ quantumlearn-ai/
 git clone <repository-url>
 cd qa
 
-# 2. Install dependencies
-npm install
+# 2. Install Flask dependencies
+python -m pip install -r requirements.txt
 
-# 3. Configure environment (optional — AI features work with offline fallback)
-#    Edit .env and add your Groq API key (see Environment Variables section)
+# 3. Set a development secret
+$env:SECRET_KEY = "local-development-secret" # PowerShell
+# export SECRET_KEY="local-development-secret" # macOS/Linux
 
-# 4. Start development server
-npm run dev
+# 4. Start Flask
+python app.py
 ```
 
-The app will be available at `http://localhost:5173`.
+The Flask app is available at `http://localhost:5000`.
 
-### Production Build
+### Render deployment
 
 ```bash
-npm run build      # Outputs to ./dist
-npm run preview    # Preview the production build locally
+# Render detects render.yaml automatically.
+# Build command: pip install -r requirements.txt
+# Start command: gunicorn app:app
 ```
+
+Render uses the persistent disk at `/var/data` for `quantumlearn.db`. Set `SECRET_KEY` as a Render secret before accepting production traffic.
 
 ---
 
@@ -191,10 +200,11 @@ npm run preview    # Preview the production build locally
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_SUPABASE_URL` | Yes | Supabase Project URL for authentication and canonical database operations. |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase Anon/Publishable Key for client-side API requests. |
+| `SECRET_KEY` | Yes in production | Secret used to sign Flask sessions. Render can generate this value. |
+| `DATABASE_PATH` | No | SQLite path. Defaults to `instance/quantumlearn.db`; Render sets `/var/data/quantumlearn.db`. |
+| `GROQ_API_KEY` | Optional | Enables the production AI tutor provider adapter. |
 
-> **Note:** The AI Tutor and AI Circuit Explainer execute via a server-side Supabase Edge Function (`ai-tutor`). The LLM API key (`GROQ_API_KEY`) is stored securely as a server-side secret in Supabase and is never exposed to the client. If the Edge Function is offline, the client automatically degrades to structured offline responses.
+The old Supabase variables are used only by the React reference implementation under `src/`; the Flask application does not require Supabase to start.
 
 ---
 
