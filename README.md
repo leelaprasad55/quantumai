@@ -503,6 +503,9 @@ The admin account is auto-seeded on first load if it doesn't exist.
 | `npm run dev` | Start Vite development server with HMR |
 | `npm run build` | Production build → `./dist` |
 | `npm run preview` | Preview the production build locally |
+| `npm test` | Run deterministic utility and configuration tests |
+
+The production build lazy-loads route pages to keep the initial JavaScript entry bundle small. The test suite covers Supabase configuration handling, knowledge scoring, roadmap behavior, skill updates, core quantum gates, Bell-state simulation, and global-phase state comparison.
 
 ---
 

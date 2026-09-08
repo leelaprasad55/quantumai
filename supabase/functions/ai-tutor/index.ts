@@ -16,6 +16,17 @@ const CANDIDATE_MODELS = [
   'llama-3.1-8b-instant'
 ];
 
+function cleanResponseContent(text: string) {
+  return String(text || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/<think\b[^>]*>[\s\S]*?(<\/think>|$)/gi, '')
+    .replace(/<analysis\b[^>]*>[\s\S]*?(<\/analysis>|$)/gi, '')
+    .replace(/<\/?(?:think|analysis)>/gi, '')
+    .replace(/<\|(?:im_start|im_end|assistant|user|system)\|>/gi, '')
+    .replace(/^\s*(?:assistant|ai)\s*:\s*/i, '')
+    .trim();
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -105,7 +116,7 @@ Please structure your explanation using Markdown:
 
         const data = await response.json();
         let rawText = data.choices?.[0]?.message?.content || '';
-        let cleaned = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        const cleaned = cleanResponseContent(rawText);
 
         if (cleaned) {
           return new Response(

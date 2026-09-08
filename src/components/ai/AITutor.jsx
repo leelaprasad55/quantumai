@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { getGroqResponse, getActiveApiKey, setActiveApiKey } from '../../utils/aiTutor.js';
+import { cleanResponseContent, getGroqResponse, getActiveApiKey, setActiveApiKey } from '../../utils/aiTutor.js';
 import { storage } from '../../utils/storage.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -106,7 +106,11 @@ export default function AITutor({ moduleId, topicName }) {
     if (user && open) {
       storage.getChatHistory(user.id).then(hist => {
         if (hist && hist.length > 0) {
-          setMessages(hist);
+          setMessages(hist.map(message => (
+            message.role === 'ai'
+              ? { ...message, text: cleanResponseContent(message.text) }
+              : message
+          )));
         }
       });
     }

@@ -1,20 +1,22 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { ProgressProvider } from './context/ProgressContext.jsx';
 import Sidebar from './components/layout/Sidebar.jsx';
 
-import { LoginPage, RegisterPage } from './pages/Auth/AuthPages.jsx';
-import KnowledgeTest from './pages/KnowledgeTest/KnowledgeTest.jsx';
-import Dashboard from './pages/Dashboard/Dashboard.jsx';
-import Roadmap from './pages/Roadmap/Roadmap.jsx';
-import ModuleList from './pages/Module/ModuleList.jsx';
-import ModuleDetail from './pages/Module/ModuleDetail.jsx';
-import CircuitBuilder from './pages/CircuitBuilder/CircuitBuilder.jsx';
-import QuantumLab from './pages/QuantumLab/QuantumLab.jsx';
-import SkillMap from './pages/SkillMap/SkillMap.jsx';
-import Achievements from './pages/Achievements/Achievements.jsx';
-import AdminPanel from './pages/Admin/AdminPanel.jsx';
-import QuantumRace from './pages/QuantumRace/QuantumRace.jsx';
+const LoginPage = lazy(() => import('./pages/Auth/AuthPages.jsx').then(module => ({ default: module.LoginPage })));
+const RegisterPage = lazy(() => import('./pages/Auth/AuthPages.jsx').then(module => ({ default: module.RegisterPage })));
+const KnowledgeTest = lazy(() => import('./pages/KnowledgeTest/KnowledgeTest.jsx'));
+const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard.jsx'));
+const Roadmap = lazy(() => import('./pages/Roadmap/Roadmap.jsx'));
+const ModuleList = lazy(() => import('./pages/Module/ModuleList.jsx'));
+const ModuleDetail = lazy(() => import('./pages/Module/ModuleDetail.jsx'));
+const CircuitBuilder = lazy(() => import('./pages/CircuitBuilder/CircuitBuilder.jsx'));
+const QuantumLab = lazy(() => import('./pages/QuantumLab/QuantumLab.jsx'));
+const SkillMap = lazy(() => import('./pages/SkillMap/SkillMap.jsx'));
+const Achievements = lazy(() => import('./pages/Achievements/Achievements.jsx'));
+const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel.jsx'));
+const QuantumRace = lazy(() => import('./pages/QuantumRace/QuantumRace.jsx'));
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, loading } = useAuth();
@@ -65,14 +67,12 @@ function MainLayout() {
 
   // If not logged in, show auth pages only
   if (!user) {
-    return (
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    );
+    return <Suspense fallback={<LoadingScreen />}><Routes>
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes></Suspense>;
   }
 
   // If user is logged in but hasn't done the knowledge test, force /test
@@ -83,12 +83,10 @@ function MainLayout() {
 
   // Knowledge test page — no sidebar
   if (location.pathname === '/test') {
-    return (
-      <Routes>
-        <Route path="/test" element={<KnowledgeTest />} />
-        <Route path="*" element={<Navigate to="/test" replace />} />
-      </Routes>
-    );
+    return <Suspense fallback={<LoadingScreen />}><Routes>
+      <Route path="/test" element={<KnowledgeTest />} />
+      <Route path="*" element={<Navigate to="/test" replace />} />
+    </Routes></Suspense>;
   }
 
   // Main app with sidebar
@@ -96,7 +94,7 @@ function MainLayout() {
     <div className="app-container">
       <Sidebar />
       <main className="main-content">
-        <Routes>
+        <Suspense fallback={<LoadingScreen />}><Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
@@ -109,7 +107,7 @@ function MainLayout() {
           <Route path="/race" element={<ProtectedRoute><QuantumRace /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminPanel /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        </Routes></Suspense>
       </main>
     </div>
   );
