@@ -43,7 +43,7 @@
 
 **QuantumLearn AI** is a full-featured, single-page web application designed to teach quantum computing from absolute beginner to expert level. The platform combines a structured **24-module curriculum** with interactive tools — a drag-and-drop **Quantum Circuit Builder**, a real-time **3D Bloch Sphere**, an **AI-powered chatbot tutor** (backed by Groq LLM with offline fallback), a **Classical vs. Quantum Race simulator**, and an **adaptive learning engine** that generates personalized roadmaps based on each student's assessed skill profile.
 
-All user data (progress, skills, achievements, circuits, chat history) is persisted in the browser's **localStorage** — no backend server or database is required.
+The deployable application is one service: FastAPI serves the compiled React app and its `/api` quantum endpoints. Supabase provides authentication and persistent learner data.
 
 ---
 
@@ -70,7 +70,7 @@ All user data (progress, skills, achievements, circuits, chat history) is persis
 
 ## 🛠 Tech Stack
 
-> The Flask/Jinja migration is now the deployable application entry point. All application routes are server-rendered through Flask; the original React/Vite implementation remains in `src/` as a reference during cleanup.
+> The deployable application is React/Vite + FastAPI. FastAPI serves the production React bundle and handles quantum execution at the same origin. The root-level Flask/Jinja files are legacy material and are not used by `render.yaml`.
 
 | Layer | Technology |
 |---|---|
@@ -82,11 +82,11 @@ All user data (progress, skills, achievements, circuits, chat history) is persis
 | **Charts** | Chart.js 4.5 + react-chartjs-2 5.3 |
 | **Typography** | Google Fonts — Inter (UI), JetBrains Mono (code) |
 | **AI Backend** | Groq Cloud API (multi-model fallback: GPT-OSS, Qwen, LLaMA) |
-| **Persistence** | Browser localStorage (prefixed `ql_`) |
+| **Persistence** | Supabase, with local fallback for offline/demo use |
 | **Quantum Engine** | Custom pure-JS quantum simulator (complex arithmetic, tensor products, state vectors) |
-| **Server** | Flask 3.1 with Jinja templates and signed sessions |
-| **Database** | SQLite locally and on Render persistent disk |
-| **Production server** | Gunicorn |
+| **Server** | FastAPI + Uvicorn |
+| **Database** | Supabase |
+| **Production server** | One Render web service |
 
 ---
 
@@ -161,6 +161,7 @@ quantumlearn-ai/
 
 ### Prerequisites
 
+- **Node.js** 22+
 - **Python** ≥ 3.10
 - **pip**
 
@@ -171,28 +172,32 @@ quantumlearn-ai/
 git clone <repository-url>
 cd qa
 
-# 2. Install Flask dependencies
-python -m pip install -r requirements.txt
+# 2. Install the React application
+npm ci
 
-# 3. Set a development secret
-$env:SECRET_KEY = "local-development-secret" # PowerShell
-# export SECRET_KEY="local-development-secret" # macOS/Linux
+# 3. Install the FastAPI service
+cd quantum_backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 
-# 4. Start Flask
-python app.py
+# 4. Start FastAPI (terminal 1)
+uvicorn app.main:app --reload --port 8000
+
+# 5. From the repository root, start Vite (terminal 2)
+npm run dev
 ```
 
-The Flask app is available at `http://localhost:5000`.
+Open the application at `http://localhost:5173`. Vite forwards `/api` requests to FastAPI on port 8000.
 
 ### Render deployment
 
 ```bash
-# Render detects render.yaml automatically.
-# Build command: pip install -r requirements.txt
-# Start command: gunicorn app:app
+# Render detects render.yaml automatically. It builds React, then FastAPI serves
+# the generated app and its quantum API from one origin.
 ```
 
-Render uses the persistent disk at `/var/data` for `quantumlearn.db`. Set `SECRET_KEY` as a Render secret before accepting production traffic.
+Set the Supabase and provider variables listed in `render.yaml` in the Render dashboard. Keep all provider secrets server-side.
 
 ---
 
@@ -200,11 +205,13 @@ Render uses the persistent disk at `/var/data` for `quantumlearn.db`. Set `SECRE
 
 | Variable | Required | Description |
 |---|---|---|
-| `SECRET_KEY` | Yes in production | Secret used to sign Flask sessions. Render can generate this value. |
-| `DATABASE_PATH` | No | SQLite path. Defaults to `instance/quantumlearn.db`; Render sets `/var/data/quantumlearn.db`. |
-| `GROQ_API_KEY` | Optional | Enables the production AI tutor provider adapter. |
+| `VITE_SUPABASE_URL` | Yes for React auth | Supabase project URL; used during the frontend build. |
+| `VITE_SUPABASE_ANON_KEY` | Yes for React auth | Supabase publishable/anon key; used during the frontend build. |
+| `SUPABASE_URL` | Yes for protected API routes | Supabase project URL, configured on FastAPI. |
+| `SUPABASE_ANON_KEY` | Yes for protected API routes | Supabase publishable/anon key, configured on FastAPI. |
+| `IBM_QUANTUM_API_KEY` | Optional | Enables IBM Quantum hardware operations. |
 
-The old Supabase variables and source files are retained only as a React reference under `src/` and `supabase/`; the Flask application does not require Supabase to start.
+The root-level Flask/Jinja application is legacy code and is not part of the deployable service.
 
 ---
 

@@ -236,7 +236,7 @@ export const storage = {
       date: new Date().toISOString()
     };
 
-    if (userId) {
+    if (userId && supabase) {
       const { error } = await supabase
         .from('saved_circuits')
         .insert({ user_id: userId, name, num_qubits: nQubits, operations: ops });
@@ -299,7 +299,7 @@ export const storage = {
       date: new Date().toISOString()
     };
 
-    if (userId) {
+    if (userId && supabase) {
       const { error } = await supabase
         .from('lab_experiments')
         .insert({
@@ -343,7 +343,9 @@ export const storage = {
   
   async deleteLabExperiment(expId, userId) {
     if (expId && supabase) {
-      await supabase.from('lab_experiments').delete().eq('id', expId);
+      let query = supabase.from('lab_experiments').delete().eq('id', expId);
+      if (userId) query = query.eq('user_id', userId);
+      await query;
     }
     try {
       const existing = readUserLocalStorage('lab_experiments', userId);

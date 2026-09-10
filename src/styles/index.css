@@ -256,6 +256,11 @@ h3 { font-size: 1.25rem; }
 .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.85rem; line-height: 1.5; }
 .chat-msg.user { align-self: flex-end; background: var(--accent); color: white; }
 .chat-msg.ai { align-self: flex-start; background: #f1f5f9; color: var(--text-primary); border: 1px solid #e2e8f0; }
+.chat-msg.ai strong { color: var(--text-primary); font-weight: 700; }
+.chat-inline-code, .chat-math-error { background: rgba(37, 99, 235, 0.1); color: #1d4ed8; padding: 2px 5px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.88em; }
+.chat-math { color: #312e81; font-size: 1.03em; white-space: nowrap; }
+.chat-math .katex { font-size: 1em; }
+.chat-math-display { display: block; max-width: 100%; overflow-x: auto; margin: 6px 0; padding: 8px 10px; background: rgba(99, 102, 241, 0.07); border-left: 3px solid #818cf8; border-radius: 0 6px 6px 0; }
 
 /* Chat toggle button */
 .chat-toggle {
@@ -864,5 +869,4 @@ h3 { font-size: 1.25rem; }
   .landing-nav { padding: 12px 20px; }
   .hero-headline { font-size: 2.1rem; }
 }
-
 

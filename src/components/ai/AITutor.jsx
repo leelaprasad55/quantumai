@@ -1,14 +1,47 @@
 import { useState, useRef, useEffect } from 'react';
-import { cleanResponseContent, getGroqResponse, getActiveApiKey, setActiveApiKey } from '../../utils/aiTutor.js';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+import { cleanResponseContent, getGroqResponse } from '../../utils/aiTutor.js';
 import { storage } from '../../utils/storage.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 function formatInlineMarkdown(str) {
   if (!str) return '';
-  return str
-    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(37,99,235,0.15);color:#38bdf8;padding:2px 6px;border-radius:4px;font-family:var(--font-mono);font-size:0.85em">$1</code>')
-    .replace(/(\|[01\+−ψϕΨΦ]⟩)/g, '<span style="color:#a855f7;font-weight:600;font-family:var(--font-mono)">$1</span>');
+
+  const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+  const math = [];
+  const mathPlaceholder = (latex, displayMode = false) => {
+    const placeholder = `\u0000MATH${math.length}\u0000`;
+    try {
+      math.push(`<span class="chat-math${displayMode ? ' chat-math-display' : ''}">${katex.renderToString(latex.trim(), {
+        throwOnError: false,
+        displayMode
+      })}</span>`);
+    } catch {
+      math.push(`<code class="chat-math-error">${escapeHtml(latex)}</code>`);
+    }
+    return placeholder;
+  };
+
+  // Extract equations before escaping Markdown so math syntax is rendered,
+  // rather than appearing as literal $ and backslash characters.
+  let output = String(str).replace(/(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$[^$\n]+?\$)/g, (match) => {
+    if (match.startsWith('$$')) return mathPlaceholder(match.slice(2, -2), true);
+    if (match.startsWith('\\[')) return mathPlaceholder(match.slice(2, -2), true);
+    if (match.startsWith('\\(')) return mathPlaceholder(match.slice(2, -2));
+    return mathPlaceholder(match.slice(1, -1));
+  });
+
+  // AI responses often use bare Dirac notation such as |ψ⟩ or |0⟩.
+  output = output.replace(/\|([^|\n]*?)(?:⟩|\\rangle)/g, (match) => mathPlaceholder(match));
+
+  output = escapeHtml(output)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>');
+
+  return output.replace(/\u0000MATH(\d+)\u0000/g, (_, index) => math[Number(index)]);
 }
 
 function FormattedMessage({ text }) {
@@ -91,9 +124,6 @@ export default function AITutor({ moduleId, topicName }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(getActiveApiKey());
-  const [keySavedToast, setKeySavedToast] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'ai', text: '👋 Hi! I\'m your AI quantum tutor. Ask me anything about quantum computing, request hints, or ask me to explain a concept!' }
   ]);
@@ -130,13 +160,6 @@ export default function AITutor({ moduleId, topicName }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, loading]);
-
-  const saveApiKey = () => {
-    setActiveApiKey(apiKeyInput);
-    setShowKeyModal(false);
-    setKeySavedToast(true);
-    setTimeout(() => setKeySavedToast(false), 2000);
-  };
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -181,47 +204,12 @@ export default function AITutor({ moduleId, topicName }) {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             <span>AI Quantum Tutor</span>
-            <button
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: '0.62rem', padding: '2px 6px', height: 'auto', gap: 2 }}
-              onClick={() => setShowKeyModal(!showKeyModal)}
-              title="Configure Groq/LLM API Key"
-            >
-              🔑 {getActiveApiKey() ? 'API Key Active' : 'Configure API Key'}
-            </button>
           </div>
           {moduleId && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Module {moduleId}{topicName ? ` · ${topicName}` : ''}</div>}
         </div>
         <button className="btn btn-secondary btn-sm btn-icon" onClick={() => setOpen(false)}>✕</button>
       </div>
 
-      {showKeyModal && (
-        <div style={{ padding: 12, background: '#0f172a', borderBottom: '1px solid var(--border-glass)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-light)', marginBottom: 6 }}>
-            🔑 Enter Groq API Key (Optional)
-          </div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>
-            Paste your key from console.groq.com to enable live Llama 3.3 model responses. (Leave blank to use smart offline mode).
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="password"
-              className="form-input"
-              placeholder="gsk_..."
-              value={apiKeyInput}
-              onChange={e => setApiKeyInput(e.target.value)}
-              style={{ fontSize: '0.78rem', padding: '4px 8px', flex: 1 }}
-            />
-            <button className="btn btn-primary btn-sm" onClick={saveApiKey}>Save</button>
-          </div>
-        </div>
-      )}
-
-      {keySavedToast && (
-        <div style={{ padding: '6px 12px', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', fontSize: '0.75rem', textAlign: 'center', fontWeight: 600 }}>
-          ✅ API Key saved!
-        </div>
-      )}
       <div className="chat-messages" ref={chatMessagesRef}>
         {messages.map((m, i) => (
           <div

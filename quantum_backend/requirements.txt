@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+slowapi
+qiskit~=2.5.2
+qiskit-aer
+qiskit-ibm-runtime~=0.47.0
+pennylane
+cirq
+qbraid
+httpx
+pytest

@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
 export function assessSupabaseConfig(env = import.meta.env || {}) {
-  const url = ((env && env.VITE_SUPABASE_URL) || '').trim();
-  const anonKey = ((env && env.VITE_SUPABASE_ANON_KEY) || '').trim();
+  const runtimeConfig = globalThis.__QUANTUMLEARN_CONFIG__ || {};
+  const url = ((env && env.VITE_SUPABASE_URL) || runtimeConfig.VITE_SUPABASE_URL || '').trim();
+  const anonKey = ((env && env.VITE_SUPABASE_ANON_KEY) || runtimeConfig.VITE_SUPABASE_ANON_KEY || '').trim();
   const missing = [];
 
   if (!url) missing.push('VITE_SUPABASE_URL');

@@ -5,6 +5,10 @@
 import { supabase } from '../lib/supabaseClient.js';
 import { explainCircuit } from './quantum.js';
 
+// Client credentials are intentionally unsupported. Live AI calls use the
+// Supabase Edge Function, whose GROQ credential remains server-side.
+function getActiveApiKey() { return ''; }
+
 // Fallback responses for offline / error scenarios
 const FALLBACK_RESPONSES = {
   qubit: "A **qubit** is the basic unit of quantum information. Unlike a classical bit (0 or 1), a qubit can exist in a **superposition** of both states simultaneously: |ψ⟩ = α|0⟩ + β|1⟩, where |α|² + |β|² = 1. When measured, it collapses to either |0⟩ or |1⟩ with probabilities |α|² and |β|² respectively.",
@@ -14,21 +18,6 @@ const FALLBACK_RESPONSES = {
   measurement: "**Quantum measurement** collapses a qubit from superposition to a definite state. For state α|0⟩ + β|1⟩:\n- Probability of measuring |0⟩ = |α|²\n- Probability of measuring |1⟩ = |β|²\n\nAfter measurement, the state collapses — you cannot 'unmeasure' a qubit.",
   default: "Great question! I'm your AI quantum tutor. Ask me about any quantum computing topic — qubits, gates, circuits, algorithms, Qiskit, QML, or anything from your current module. I'm here to explain, give hints, and help you understand your mistakes.",
 };
-
-export function getActiveApiKey() {
-  const userKey = localStorage.getItem('user_ai_api_key') || localStorage.getItem('groq_api_key');
-  if (userKey && userKey.trim()) return userKey.trim();
-  return '';
-}
-
-export function setActiveApiKey(key) {
-  if (key && key.trim()) {
-    localStorage.setItem('user_ai_api_key', key.trim());
-  } else {
-    localStorage.removeItem('user_ai_api_key');
-    localStorage.removeItem('groq_api_key');
-  }
-}
 
 export function cleanResponseContent(text) {
   if (!text) return '';
