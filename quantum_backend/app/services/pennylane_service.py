@@ -10,6 +10,9 @@ def _constant(node):
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)): return node.value
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub): return -_constant(node.operand)
     if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "math" and node.attr == "pi": return math.pi
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+        left, right = _constant(node.left), _constant(node.right)
+        return {ast.Add: left + right, ast.Sub: left - right, ast.Mult: left * right, ast.Div: left / right}[type(node.op)]
     raise ValueError("Only numeric gate angles are allowed.")
 
 
@@ -38,7 +41,7 @@ def run_pennylane(code: str, shots: int = 1024):
         if name not in names: raise ValueError(f"Unsupported PennyLane operation: {name}")
         wire_node = next((keyword.value for keyword in call.keywords if keyword.arg == "wires"), None)
         if wire_node is None: raise ValueError(f"{name} must specify wires.")
-        if isinstance(wire_node, ast.List): target = [_wire(item) for item in wire_node.elts]
+        if isinstance(wire_node, (ast.List, ast.Tuple)): target = [_wire(item) for item in wire_node.elts]
         else: target = _wire(wire_node)
         op_args = [_constant(arg) for arg in call.args]
         operations.append((names[name], op_args, target)); wires.update(target if isinstance(target, list) else [target])

@@ -25,6 +25,13 @@ def _integer(node):
     return int(value)
 
 
+def _indexes(node):
+    """Parse a safe Qiskit qubit/classical-bit index or a literal index list."""
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [_integer(element) for element in node.elts]
+    return _integer(node)
+
+
 def compile_qiskit(code: str) -> QuantumCircuit:
     try: tree = ast.parse(code, mode="exec")
     except SyntaxError as exc: raise ValueError(f"Invalid Python: {exc.msg}") from exc
@@ -49,9 +56,12 @@ def compile_qiskit(code: str) -> QuantumCircuit:
         if name in {"rx", "ry", "rz"}:
             if len(args) != 2: raise ValueError(f"{name.upper()} requires an angle and target qubit.")
             getattr(circuit, name)(_number(args[0]), _integer(args[1]))
-        elif name in {"cx", "cz", "swap", "measure"}:
+        elif name in {"cx", "cz", "swap"}:
             if len(args) != 2: raise ValueError(f"{name.upper()} requires two indexes.")
             getattr(circuit, name)(_integer(args[0]), _integer(args[1]))
+        elif name == "measure":
+            if len(args) != 2: raise ValueError("MEASURE requires qubit and classical-bit indexes.")
+            getattr(circuit, name)(_indexes(args[0]), _indexes(args[1]))
         elif name == "measure_all": circuit.measure_all()
         elif name == "barrier": circuit.barrier()
         else:
