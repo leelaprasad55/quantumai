@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabaseClient.js';
 
 // Production uses the same FastAPI origin that serves the React bundle. During
 // Vite development, /api is forwarded to the local FastAPI server by vite.config.js.
-const API_URL = (import.meta.env.VITE_QUANTUM_API_URL || '').replace(/\/$/, '');
+const API_URL = ((import.meta.env || {}).VITE_QUANTUM_API_URL || '').replace(/\/$/, '');
 
 async function request(path, options = {}) {
   const { data: { session } = {} } = supabase ? await supabase.auth.getSession() : { data: {} };
@@ -32,8 +32,23 @@ export function buildQiskitCircuit(ops, qubits) {
   return lines.join('\n');
 }
 
+// Some earlier deployments returned measurements/counts without a `success`
+// flag. Treat those as a completed execution instead of showing a false error.
+export function normalizeExecutionResult(result) {
+  if (!result || typeof result !== 'object' || result.success === true) return result;
+  const measurements = result.measurements || result.counts;
+  if (!measurements && !result.probabilities) return result;
+  return {
+    ...result,
+    success: true,
+    measurements: result.measurements || result.counts || {},
+    counts: result.counts || result.measurements || {},
+  };
+}
+
 export async function executeCircuit({ framework = 'qiskit', code, shots = 1024 }) {
-  return request('/api/quantum/execute', { method: 'POST', body: JSON.stringify({ framework, code, shots }) });
+  const result = await request('/api/quantum/execute', { method: 'POST', body: JSON.stringify({ framework, code, shots }) });
+  return normalizeExecutionResult(result);
 }
 
 export async function getCapabilities() { return request('/api/capabilities'); }

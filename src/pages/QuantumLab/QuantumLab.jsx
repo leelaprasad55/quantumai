@@ -458,7 +458,9 @@ print("Cirq Execution Results:\\n", result.histogram(key='result'))
     setCodeRun({ loading: true });
     try {
       const result = await executeCircuit({ framework: codeFramework, code: activeCode, shots });
-      setCodeRun(result.success ? result : { error: result.error || 'Execution failed.' });
+      setCodeRun(result?.success === true
+        ? result
+        : { error: result?.error || result?.detail || 'The quantum API returned an incomplete execution result. Restart or redeploy the quantum backend.' });
     } catch (error) { setCodeRun({ error: error.message }); }
   };
 
