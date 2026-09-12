@@ -17,6 +17,7 @@ const SkillMap = lazy(() => import('./pages/SkillMap/SkillMap.jsx'));
 const Achievements = lazy(() => import('./pages/Achievements/Achievements.jsx'));
 const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel.jsx'));
 const QuantumRace = lazy(() => import('./pages/QuantumRace/QuantumRace.jsx'));
+const InstructorDashboard = lazy(() => import('./pages/Instructor/InstructorDashboard.jsx'));
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ function MainLayout() {
 
   // If user is logged in and on an auth page → smart redirect
   if (user && isAuthPage) {
+    if (user.isInstructor) return <Navigate to="/instructor" replace />;
     // New user who hasn't done the knowledge assessment yet
     if (!user.knowledgeTestDone) {
       return <Navigate to="/test" replace />;
@@ -73,6 +75,13 @@ function MainLayout() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></Suspense>;
+  }
+
+  if (user.isInstructor) {
+    return <div className="app-container"><Sidebar /><main className="main-content"><Suspense fallback={<LoadingScreen />}><Routes>
+      <Route path="/instructor" element={<InstructorDashboard />} />
+      <Route path="*" element={<Navigate to="/instructor" replace />} />
+    </Routes></Suspense></main></div>;
   }
 
   // If user is logged in but hasn't done the knowledge test, force /test
@@ -106,6 +115,7 @@ function MainLayout() {
           <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
           <Route path="/race" element={<ProtectedRoute><QuantumRace /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminPanel /></ProtectedRoute>} />
+          <Route path="/instructor" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes></Suspense>
       </main>

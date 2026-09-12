@@ -14,6 +14,7 @@ export const normalizeLocalUser = (record = {}) => ({
   total_xp: Number(record.total_xp || 0),
   current_streak: Number(record.current_streak || 0),
   isAdmin: record.role === 'admin',
+  isInstructor: record.role === 'instructor',
   knowledgeTestDone: Boolean(record.knowledge_test_done || record.knowledgeTestDone || false),
   knowledgeScore: Number(record.knowledge_score || record.knowledgeScore || 0),
   education: record.education || null,
@@ -47,6 +48,21 @@ const getStoredLocalUser = () => {
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
+  }
+};
+
+const INSTRUCTOR_DEMO_ACCOUNT = {
+  id: 'local-instructor-quantumlearn', email: 'instructor@gmail.com', password: 'instructor123',
+  name: 'Dr. Quantum Instructor', full_name: 'Dr. Quantum Instructor', role: 'instructor',
+  education: 'Instructor', goal: 'Guide QuantumLearn students', knowledge_test_done: true,
+  knowledge_score: 100, total_xp: 0, current_streak: 0, created_at: '2026-01-01T00:00:00.000Z',
+};
+
+const ensureInstructorDemoAccount = () => {
+  const users = readLocalUsers();
+  if (!users.some(user => user.email?.toLowerCase() === INSTRUCTOR_DEMO_ACCOUNT.email)) {
+    users.push(INSTRUCTOR_DEMO_ACCOUNT);
+    writeLocalUsers(users);
   }
 };
 
@@ -90,6 +106,7 @@ export const localAuth = {
     return { success: true, user: normalizeLocalUser(userRecord) };
   },
   login(email, password) {
+    ensureInstructorDemoAccount();
     const users = readLocalUsers();
     const normalizedEmail = (email || '').trim().toLowerCase();
     const match = users.find(user => (user.email || '').trim().toLowerCase() === normalizedEmail && String(user.password) === String(password));
@@ -158,6 +175,7 @@ export function AuthProvider({ children }) {
       total_xp: profile?.total_xp || 0,
       current_streak: profile?.current_streak || 0,
       isAdmin: profile?.role === 'admin',
+      isInstructor: profile?.role === 'instructor',
       knowledgeTestDone: profile?.knowledge_test_done || false,
       knowledgeScore: profile?.knowledge_score || 0,
       education: authUser.user_metadata?.education || null,
@@ -183,6 +201,7 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     const initAuth = async () => {
+      ensureInstructorDemoAccount();
       if (!supabase) {
         const localUser = getStoredLocalUser();
         if (mounted) {
@@ -274,6 +293,14 @@ export function AuthProvider({ children }) {
 
   // Email + Password Sign In
   const login = async (email, password) => {
+    // SIH demo instructor account is available even when a remote Supabase project is configured.
+    if ((email || '').trim().toLowerCase() === INSTRUCTOR_DEMO_ACCOUNT.email && password === INSTRUCTOR_DEMO_ACCOUNT.password) {
+      ensureInstructorDemoAccount();
+      saveLocalSession(INSTRUCTOR_DEMO_ACCOUNT);
+      const instructor = normalizeLocalUser(INSTRUCTOR_DEMO_ACCOUNT);
+      setUser(instructor);
+      return { success: true, user: instructor };
+    }
     if (!supabase) {
       const result = localAuth.login(email, password);
       if (result.success) {
