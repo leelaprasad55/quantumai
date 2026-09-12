@@ -5,6 +5,10 @@
 import { supabase } from '../lib/supabaseClient.js';
 import { explainCircuit } from './quantum.js';
 
+// Client credentials are intentionally unsupported. Live AI calls use the
+// Supabase Edge Function, whose GROQ credential remains server-side.
+function getActiveApiKey() { return ''; }
+
 // Fallback responses for offline / error scenarios
 const FALLBACK_RESPONSES = {
   qubit: "A **qubit** is the basic unit of quantum information. Unlike a classical bit (0 or 1), a qubit can exist in a **superposition** of both states simultaneously: |ψ⟩ = α|0⟩ + β|1⟩, where |α|² + |β|² = 1. When measured, it collapses to either |0⟩ or |1⟩ with probabilities |α|² and |β|² respectively.",
@@ -15,21 +19,17 @@ const FALLBACK_RESPONSES = {
   default: "Great question! I'm your AI quantum tutor. Ask me about any quantum computing topic — qubits, gates, circuits, algorithms, Qiskit, QML, or anything from your current module. I'm here to explain, give hints, and help you understand your mistakes.",
 };
 
-export function getActiveApiKey() {
-  const userKey = localStorage.getItem('user_ai_api_key') || localStorage.getItem('groq_api_key');
-  if (userKey && userKey.trim()) return userKey.trim();
-  const envKey = import.meta.env.VITE_GROQ_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_OPENAI_API_KEY;
-  if (envKey && envKey.trim()) return envKey.trim();
-  return '';
-}
+export function cleanResponseContent(text) {
+  if (!text) return '';
 
-export function setActiveApiKey(key) {
-  if (key && key.trim()) {
-    localStorage.setItem('user_ai_api_key', key.trim());
-  } else {
-    localStorage.removeItem('user_ai_api_key');
-    localStorage.removeItem('groq_api_key');
-  }
+  return String(text)
+    .replace(/^\uFEFF/, '')
+    .replace(/<think\b[^>]*>[\s\S]*?(<\/think>|$)/gi, '')
+    .replace(/<analysis\b[^>]*>[\s\S]*?(<\/analysis>|$)/gi, '')
+    .replace(/<\/?(?:think|analysis)>/gi, '')
+    .replace(/<\|(?:im_start|im_end|assistant|user|system)\|>/gi, '')
+    .replace(/^\s*(?:assistant|ai)\s*:\s*/i, '')
+    .trim();
 }
 
 async function callDirectGroqApi(apiKey, messages) {
@@ -64,7 +64,7 @@ async function callDirectGroqApi(apiKey, messages) {
         const data = await response.json();
         const rawContent = data.choices?.[0]?.message?.content;
         if (rawContent) {
-          const cleaned = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+          const cleaned = cleanResponseContent(rawContent);
           if (cleaned) return cleaned;
         }
       } else {
@@ -171,22 +171,25 @@ function getFallbackResponse(message, currentModule, currentTopic) {
  */
 export async function getGroqResponse(userMessage, chatHistory = [], currentModule = null, currentTopic = null) {
   // 1. Try Supabase Edge Function (uses GROQ_API_KEY secret configured in Supabase Dashboard)
-  try {
-    const { data, error } = await supabase.functions.invoke('ai-tutor', {
-      body: {
-        mode: 'chat',
-        userMessage,
-        chatHistory,
-        currentModule,
-        currentTopic
-      }
-    });
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          mode: 'chat',
+          userMessage,
+          chatHistory,
+          currentModule,
+          currentTopic
+        }
+      });
 
-    if (!error && data && data.text) {
-      return data.text;
+      if (!error && data && data.text) {
+        const cleaned = cleanResponseContent(data.text);
+        if (cleaned) return cleaned;
+      }
+    } catch (err) {
+      console.warn('Supabase Edge Function invocation failed, falling back to direct API key:', err);
     }
-  } catch (err) {
-    console.warn('Supabase Edge Function invocation failed, falling back to direct API key:', err);
   }
 
   // 2. Try Direct Groq API Key if configured in client (.env or UI modal)
@@ -232,20 +235,23 @@ export async function explainCircuitWithGroq(ops, nQubits) {
   if (!ops || ops.length === 0) return null;
 
   // 1. Try Supabase Edge Function (uses GROQ_API_KEY secret configured in Supabase)
-  try {
-    const { data, error } = await supabase.functions.invoke('ai-tutor', {
-      body: {
-        mode: 'explain_circuit',
-        ops,
-        nQubits
-      }
-    });
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          mode: 'explain_circuit',
+          ops,
+          nQubits
+        }
+      });
 
-    if (!error && data && data.text) {
-      return data.text;
+      if (!error && data && data.text) {
+        const cleaned = cleanResponseContent(data.text);
+        if (cleaned) return cleaned;
+      }
+    } catch (err) {
+      console.warn('Circuit explanation Edge Function failed, trying direct API key:', err);
     }
-  } catch (err) {
-    console.warn('Circuit explanation Edge Function failed, trying direct API key:', err);
   }
 
   // 2. Try Direct Groq API Key

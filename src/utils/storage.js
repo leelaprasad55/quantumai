@@ -20,13 +20,14 @@ export const storage = {
   // ----------------------------------------------------
   async getProgress(userId) {
     if (!userId) return createDefaultProgress();
+    if (!supabase) return createDefaultProgress();
     
     // Fetch progress
     const { data: progData, error: progErr } = await supabase
       .from('user_progress')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
       
     // Fetch module progress
     const { data: modsData } = await supabase
@@ -98,7 +99,7 @@ export const storage = {
   },
 
   async setProgress(userId, progress) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     
     // Update main progress table
     const { error } = await supabase
@@ -121,12 +122,12 @@ export const storage = {
   },
 
   async getSkills(userId) {
-    if (!userId) return createDefaultSkills();
+    if (!userId || !supabase) return createDefaultSkills();
     const { data, error } = await supabase
       .from('user_skills')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
       
     if (error && error.code !== 'PGRST116') {
       console.error('Error fetching skills:', error);
@@ -139,7 +140,7 @@ export const storage = {
   },
 
   async setSkills(userId, skills) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     
     const dbSkills = {
       user_id: userId,
@@ -171,7 +172,7 @@ export const storage = {
   // COMPLETION RECORDS
   // ----------------------------------------------------
   async completeTopic(userId, topicId, score = 0) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     const { error } = await supabase
       .from('topic_progress')
       .upsert({ user_id: userId, topic_id: topicId, score }, { onConflict: 'user_id, topic_id' });
@@ -179,7 +180,7 @@ export const storage = {
   },
 
   async completeModule(userId, moduleId, score = 0) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     const { error } = await supabase
       .from('module_progress')
       .upsert({ user_id: userId, module_id: moduleId, score }, { onConflict: 'user_id, module_id' });
@@ -187,7 +188,7 @@ export const storage = {
   },
 
   async recordTestScore(userId, moduleId, score, details) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     const { error } = await supabase
       .from('test_attempts')
       .insert({ user_id: userId, module_id: moduleId, score, details });
@@ -199,7 +200,7 @@ export const storage = {
   // ----------------------------------------------------
   async getSavedCircuits(userId) {
     let supabaseCircuits = [];
-    if (userId) {
+    if (userId && supabase) {
       const { data, error } = await supabase
         .from('saved_circuits')
         .select('*')
@@ -222,6 +223,8 @@ export const storage = {
   },
 
   async insertCircuit(userId, name, nQubits, ops) {
+    if (!userId && !supabase) return null;
+
     const item = {
       id: generateId(),
       name,
@@ -233,7 +236,7 @@ export const storage = {
       date: new Date().toISOString()
     };
 
-    if (userId) {
+    if (userId && supabase) {
       const { error } = await supabase
         .from('saved_circuits')
         .insert({ user_id: userId, name, num_qubits: nQubits, operations: ops });
@@ -251,7 +254,7 @@ export const storage = {
 
   async getLabExperiments(userId) {
     let supabaseExps = [];
-    if (userId) {
+    if (userId && supabase) {
       const { data, error } = await supabase
         .from('lab_experiments')
         .select('*')
@@ -283,6 +286,8 @@ export const storage = {
   },
 
   async insertLabExperiment(userId, exp) {
+    if (!userId && !supabase) return null;
+
     const item = {
       id: generateId(),
       name: exp.name,
@@ -294,7 +299,7 @@ export const storage = {
       date: new Date().toISOString()
     };
 
-    if (userId) {
+    if (userId && supabase) {
       const { error } = await supabase
         .from('lab_experiments')
         .insert({
@@ -319,12 +324,12 @@ export const storage = {
   },
 
   async incrementLabExperiments(userId) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     const { data } = await supabase
       .from('user_progress')
       .select('lab_experiments')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
     const current = Number(data?.lab_experiments || 0);
     const { error } = await supabase
       .from('user_progress')
@@ -337,8 +342,10 @@ export const storage = {
   },
   
   async deleteLabExperiment(expId, userId) {
-    if (expId) {
-      await supabase.from('lab_experiments').delete().eq('id', expId);
+    if (expId && supabase) {
+      let query = supabase.from('lab_experiments').delete().eq('id', expId);
+      if (userId) query = query.eq('user_id', userId);
+      await query;
     }
     try {
       const existing = readUserLocalStorage('lab_experiments', userId);
@@ -351,7 +358,7 @@ export const storage = {
   // CHAT HISTORY
   // ----------------------------------------------------
   async getChatHistory(userId) {
-    if (!userId) return [];
+    if (!userId || !supabase) return [];
     const { data, error } = await supabase
       .from('ai_chat_messages')
       .select('*')
@@ -362,7 +369,7 @@ export const storage = {
   },
 
   async insertChatMessage(userId, role, text) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     const { error } = await supabase
       .from('ai_chat_messages')
       .insert({ user_id: userId, role, message_text: text });
@@ -373,6 +380,7 @@ export const storage = {
   // ANALYTICS & ADMIN
   // ----------------------------------------------------
   async getUsers() {
+    if (!supabase) return [];
     const { data, error } = await supabase.rpc('get_admin_users');
     if (error) {
       console.warn('Error fetching admin users list:', error.message);
@@ -391,7 +399,7 @@ export const storage = {
   },
 
   async resetUserProgress(userId) {
-    if (!userId) return false;
+    if (!userId || !supabase) return false;
     const { data, error } = await supabase.rpc('reset_user_progress', { target_user_id: userId });
     if (error) {
       console.error('Error resetting user progress:', error.message);
@@ -401,7 +409,7 @@ export const storage = {
   },
 
   async getActivityLog(userId) {
-    if (!userId) return {};
+    if (!userId || !supabase) return {};
     const { data, error } = await supabase
       .from('activity_log')
       .select('*')
@@ -413,6 +421,7 @@ export const storage = {
   },
 
   async getGlobalActivitySummary() {
+    if (!supabase) return {};
     const { data, error } = await supabase.rpc('get_global_activity_summary');
     if (error) {
       console.error('Error fetching global activity summary:', error.message);
@@ -426,7 +435,7 @@ export const storage = {
   },
 
   async logActivity(userId) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     const { error } = await supabase.rpc('log_activity');
     if (error) {
       console.error('Error logging activity:', error.message);
@@ -434,7 +443,7 @@ export const storage = {
   },
 
   async getGateUsage(userId) {
-    if (!userId) return {};
+    if (!userId || !supabase) return {};
     const { data, error } = await supabase
       .from('gate_usage')
       .select('*')
@@ -446,6 +455,7 @@ export const storage = {
   },
 
   async getGlobalGateUsage() {
+    if (!supabase) return {};
     const { data, error } = await supabase.rpc('get_global_gate_usage');
     if (error) {
       console.error('Error fetching global gate usage:', error.message);
@@ -459,7 +469,7 @@ export const storage = {
   },
 
   async trackGateUsage(userId, gateName) {
-    if (!userId || !gateName) return;
+    if (!userId || !gateName || !supabase) return;
     const { error } = await supabase.rpc('increment_gate_usage', { p_gate_name: gateName });
     if (error) {
       console.error('Error tracking gate usage:', error.message);
@@ -467,7 +477,7 @@ export const storage = {
   },
 
   async completePuzzle(userId, puzzleId) {
-    if (!userId) return;
+    if (!userId || !supabase) return;
     await supabase
       .from('puzzle_progress')
       .upsert({ user_id: userId, puzzle_id: puzzleId, completed: true }, { onConflict: 'user_id, puzzle_id' });
@@ -477,7 +487,7 @@ export const storage = {
   // AVATAR STORAGE
   // ----------------------------------------------------
   async uploadAvatar(userId, file) {
-    if (!userId || !file) return null;
+    if (!userId || !file || !supabase) return null;
     const fileExt = file.name.split('.').pop();
     const fileName = `avatar_${Date.now()}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;

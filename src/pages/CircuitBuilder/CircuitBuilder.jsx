@@ -172,11 +172,10 @@ export default function CircuitBuilder() {
 
   const simulate = () => {
     const nonMeasure = ops.filter(o => o.gate !== 'M');
+    if (nonMeasure.length === 0) return;
     try {
       const state = simulateCircuit(nonMeasure, nQubits);
-      const probs = getProbabilities(state);
-      const counts = measure(state, nQubits, shots);
-      setResults({ state, probs, counts });
+      setResults({ state, probs: getProbabilities(state), counts: measure(state, nQubits, shots) });
     } catch (e) { setResults({ error: e.message }); }
   };
 

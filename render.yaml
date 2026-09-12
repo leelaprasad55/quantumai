@@ -1,15 +1,19 @@
 services:
   - type: web
     name: quantumlearn
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    runtime: docker
+    dockerfilePath: ./quantum_backend/Dockerfile
+    dockerContext: .
     envVars:
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DATABASE_PATH
-        value: /var/data/quantumlearn.db
-    disk:
-      name: quantumlearn-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: IBM_QUANTUM_API_KEY
+        sync: false
+      - key: IBM_QUANTUM_INSTANCE
+        sync: false
+      - key: QBRAID_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://quantumlearn.onrender.com
