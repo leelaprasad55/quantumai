@@ -3,8 +3,7 @@ import { simulateCircuit, getProbabilities, measure, initState, applyGate, getRe
 import AITutor from '../../components/ai/AITutor.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { storage } from '../../utils/storage.js';
-import { submitIbmJob } from '../../services/quantumApi.js';
-import { executeCircuit } from '../../services/quantumApi.js';
+import { submitIbmJob, executeCircuit, getCapabilities } from '../../services/quantumApi.js';
 import Editor from '@monaco-editor/react';
 
 const PRESETS = {
@@ -327,6 +326,19 @@ function QuantumLabInner() {
   const [editedCode, setEditedCode] = useState(null);
   const [codeRun, setCodeRun] = useState(null);
   const [jobDispatch, setJobDispatch] = useState(null); // { status: 'idle'|'submitting'|'queued'|'running'|'completed', jobId: '' }
+  const [hardwareStatus, setHardwareStatus] = useState({ loading: true, configured: false, error: '' });
+
+  useEffect(() => {
+    let active = true;
+    getCapabilities()
+      .then(capabilities => {
+        if (active) setHardwareStatus({ loading: false, configured: capabilities?.ibm_quantum === true, error: '' });
+      })
+      .catch(() => {
+        if (active) setHardwareStatus({ loading: false, configured: false, error: 'The quantum backend is unavailable. Deploy the FastAPI Web Service to enable code execution and hardware jobs.' });
+      });
+    return () => { active = false; };
+  }, []);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -920,13 +932,18 @@ print("Cirq Execution Results:\\n", result.histogram(key='result'))
           <div className="card">
             <h3 style={{ marginBottom: 16 }}>🚀 Cloud Hardware Dispatch Studio</h3>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Hardware credentials are configured securely on the backend. Submit only when the provider status is configured.
+              IBM credentials are configured securely in the backend environment. Never paste an IBM API key into the browser.
             </p>
+
+            <div className={`tag ${hardwareStatus.configured ? 'tag-success' : 'tag-warning'}`} style={{ marginBottom: 12 }}>
+              {hardwareStatus.loading ? 'Checking IBM backend…' : hardwareStatus.configured ? 'IBM backend configured' : hardwareStatus.error || 'IBM backend is not configured. Add IBM_QUANTUM_API_KEY and IBM_QUANTUM_INSTANCE in Render.'}
+            </div>
 
             <button
               className="btn btn-primary btn-lg"
               style={{ width: '100%', marginTop: 8 }}
               onClick={dispatchToRealQPU}
+              disabled={hardwareStatus.loading || !hardwareStatus.configured}
             >
               📡 Submit Job to Physical QPU
             </button>

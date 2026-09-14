@@ -53,8 +53,16 @@ export async function executeCircuit({ framework = 'qiskit', code, shots = 1024 
 
 export async function getCapabilities() { return request('/api/capabilities'); }
 
+export function normalizeIbmJobSubmission(result) {
+  if (result?.success === true && typeof result.job_id === 'string' && result.job_id && typeof result.backend === 'string' && result.backend) {
+    return result;
+  }
+  throw new Error(result?.detail || result?.error || 'The quantum backend returned an incomplete IBM job response. Deploy the FastAPI backend and configure IBM_QUANTUM_API_KEY and IBM_QUANTUM_INSTANCE in Render.');
+}
+
 export async function submitIbmJob({ backend, shots, code }) {
-  return request('/api/ibm/run', { method: 'POST', body: JSON.stringify({ backend, shots, code }) });
+  const result = await request('/api/ibm/run', { method: 'POST', body: JSON.stringify({ backend, shots, code }) });
+  return normalizeIbmJobSubmission(result);
 }
 
 export async function getIbmJob(jobId) { return request(`/api/jobs/ibm/${encodeURIComponent(jobId)}`); }
