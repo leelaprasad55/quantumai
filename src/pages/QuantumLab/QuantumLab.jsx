@@ -381,7 +381,7 @@ def circuit():
       else if (op.gate === 'Z') code += `    qml.PauliZ(wires=${op.target})\n`;
       else if (op.gate === 'S') code += `    qml.S(wires=${op.target})\n`;
       else if (op.gate === 'T') code += `    qml.T(wires=${op.target})\n`;
-      else if (['Rx', 'Ry', 'Rz'].includes(op.gate)) code += `    qml.${op.gate}(${op.angle || 1.5708}, wires=${op.target})\n`;
+      else if (['Rx', 'Ry', 'Rz'].includes(op.gate)) code += `    qml.${op.gate.toUpperCase()}(${op.angle || 1.5708}, wires=${op.target})\n`;
       else if (op.gate === 'CNOT') code += `    qml.CNOT(wires=[${op.control}, ${op.target}])\n`;
       else if (op.gate === 'SWAP') code += `    qml.SWAP(wires=[${op.control || 0}, ${op.target}])\n`;
       else if (op.gate === 'CZ') code += `    qml.CZ(wires=[${op.control || 0}, ${op.target}])\n`;
@@ -433,6 +433,7 @@ print("Cirq Execution Results:\\n", result.histogram(key='result'))
       else if (op.gate === 'Z') qasm += `z q[${op.target}];\n`;
       else if (op.gate === 'S') qasm += `s q[${op.target}];\n`;
       else if (op.gate === 'T') qasm += `t q[${op.target}];\n`;
+      else if (['Rx', 'Ry', 'Rz'].includes(op.gate)) qasm += `${op.gate.toLowerCase()}(${(op.angle || Math.PI / 2).toFixed(4)}) q[${op.target}];\n`;
       else if (op.gate === 'CNOT') qasm += `cx q[${op.control}], q[${op.target}];\n`;
       else if (op.gate === 'SWAP') qasm += `swap q[${op.control}], q[${op.target}];\n`;
       else if (op.gate === 'CZ') qasm += `cz q[${op.control}], q[${op.target}];\n`;
@@ -442,10 +443,10 @@ print("Cirq Execution Results:\\n", result.histogram(key='result'))
   };
 
   const dispatchToRealQPU = async () => {
-    setJobDispatch({ status: 'submitting', jobId: '', step: 'Submitting to the configured backend…' });
+    setJobDispatch({ status: 'submitting', jobId: '', step: 'Submitting your circuit to the configured backend…' });
     try {
-      const job = await submitIbmJob({ backend: selectedDevice, shots });
-      setJobDispatch({ status: String(job.status || 'queued').toLowerCase(), jobId: job.job_id, step: `Submitted to ${job.backend}. Poll this real job ID for status and results.` });
+      const job = await submitIbmJob({ backend: selectedDevice, shots, code: generateQiskitCode() });
+      setJobDispatch({ status: String(job.status || 'queued').toLowerCase(), jobId: job.job_id, step: `Submitted your circuit to ${job.backend}. Poll this real job ID for status and results.` });
     } catch (error) {
       setJobDispatch({ status: 'error', jobId: '', step: error.message || 'IBM Quantum is not configured on the backend.' });
     }

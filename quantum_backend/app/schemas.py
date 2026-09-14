@@ -29,3 +29,14 @@ class AlgorithmRequest(BaseModel):
 class IBMRunRequest(BaseModel):
     backend: str | None = Field(default=None, max_length=128)
     shots: int = Field(default=1024, ge=100, le=4096)
+    code: str | None = Field(default=None, max_length=12000)
+
+    @field_validator("code")
+    @classmethod
+    def reject_dangerous_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        blocked = ("__import__", "open(", "eval(", "exec(", "os.", "subprocess", "socket", "requests", "urllib", "pathlib", "globals(", "locals(")
+        if any(token in value.lower() for token in blocked):
+            raise ValueError("The submitted program contains an operation not allowed in the quantum sandbox.")
+        return value

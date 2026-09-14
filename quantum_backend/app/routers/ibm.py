@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.schemas import IBMRunRequest
-from app.services.ibm_service import get_backends, submit_bell
+from app.services.ibm_service import get_backends, submit_circuit
 from app.security import require_configured_auth
 
 
@@ -25,7 +25,8 @@ def backends():
 @router.post("/run")
 def run(request: IBMRunRequest):
     try:
-        result = submit_bell(
+        result = submit_circuit(
+            code=request.code,
             backend_name=request.backend,
             shots=request.shots,
         )

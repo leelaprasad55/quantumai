@@ -150,7 +150,7 @@ export function blochCoords(state) {
   const a = state[0] || c(0);
   const b = state[1] || c(0);
   const x = 2 * (a.r * b.r + a.i * b.i);
-  const y = 2 * (a.i * b.r - a.r * b.i);
+  const y = -2 * (a.i * b.r - a.r * b.i);
   const z = abs2(a) - abs2(b);
   return { x, y, z };
 }

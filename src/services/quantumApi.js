@@ -53,8 +53,8 @@ export async function executeCircuit({ framework = 'qiskit', code, shots = 1024 
 
 export async function getCapabilities() { return request('/api/capabilities'); }
 
-export async function submitIbmJob({ backend, shots }) {
-  return request('/api/ibm/run', { method: 'POST', body: JSON.stringify({ backend, shots }) });
+export async function submitIbmJob({ backend, shots, code }) {
+  return request('/api/ibm/run', { method: 'POST', body: JSON.stringify({ backend, shots, code }) });
 }
 
 export async function getIbmJob(jobId) { return request(`/api/jobs/ibm/${encodeURIComponent(jobId)}`); }
