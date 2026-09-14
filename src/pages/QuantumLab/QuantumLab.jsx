@@ -3,7 +3,7 @@ import { simulateCircuit, getProbabilities, measure, initState, applyGate, getRe
 import AITutor from '../../components/ai/AITutor.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { storage } from '../../utils/storage.js';
-import { submitIbmJob, executeCircuit, getCapabilities } from '../../services/quantumApi.js';
+import { submitIbmJob, executeCircuit, getCapabilities, getIbmBackends } from '../../services/quantumApi.js';
 import Editor from '@monaco-editor/react';
 
 const PRESETS = {
@@ -327,12 +327,28 @@ function QuantumLabInner() {
   const [codeRun, setCodeRun] = useState(null);
   const [jobDispatch, setJobDispatch] = useState(null); // { status: 'idle'|'submitting'|'queued'|'running'|'completed', jobId: '' }
   const [hardwareStatus, setHardwareStatus] = useState({ loading: true, configured: false, error: '' });
+  const [availableDevices, setAvailableDevices] = useState([]);
 
   useEffect(() => {
     let active = true;
     getCapabilities()
-      .then(capabilities => {
-        if (active) setHardwareStatus({ loading: false, configured: capabilities?.ibm_quantum === true, error: '' });
+      .then(async capabilities => {
+        if (!capabilities?.ibm_quantum) {
+          if (active) setHardwareStatus({ loading: false, configured: false, error: '' });
+          return;
+        }
+        try {
+          const response = await getIbmBackends();
+          const backends = response?.backends || [];
+          if (!backends.length) throw new Error('No operational IBM hardware backends are available for this account.');
+          if (active) {
+            setAvailableDevices(backends);
+            setSelectedDevice(backends[0].name);
+            setHardwareStatus({ loading: false, configured: true, error: '' });
+          }
+        } catch (error) {
+          if (active) setHardwareStatus({ loading: false, configured: false, error: error.message || 'Unable to load available IBM backends.' });
+        }
       })
       .catch(() => {
         if (active) setHardwareStatus({ loading: false, configured: false, error: 'The quantum backend is unavailable. Deploy the FastAPI Web Service to enable code execution and hardware jobs.' });
@@ -466,6 +482,15 @@ print("Cirq Execution Results:\\n", result.histogram(key='result'))
 
   const generatedCode = codeFramework === 'qiskit' ? generateQiskitCode() : codeFramework === 'pennylane' ? generatePennyLaneCode() : codeFramework === 'cirq' ? generateCirqCode() : generateQASMCode();
   const activeCode = editedCode ?? generatedCode;
+  const selectedBackend = availableDevices.find(device => device.name === selectedDevice);
+  const selectedTopology = IBM_TOPOLOGIES[selectedDevice] || {
+    name: selectedDevice,
+    qubits: selectedBackend?.qubits ?? '—',
+    qv: 'Live IBM device',
+    t1: 'View in IBM Quantum',
+    err2: 'View in IBM Quantum',
+    coupling: 'Live topology is managed by IBM Quantum',
+  };
   const runFrameworkCode = async () => {
     if (codeFramework === 'qasm') { setCodeRun({ error: 'OpenQASM export is not executable from this editor. Select a framework.' }); return; }
     setCodeRun({ loading: true });
@@ -884,37 +909,37 @@ print("Cirq Execution Results:\\n", result.histogram(key='result'))
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3>🌐 Quantum Hardware Topology</h3>
               <select className="form-select" value={selectedDevice} onChange={e => setSelectedDevice(e.target.value)} style={{ width: 220 }}>
-                {Object.entries(IBM_TOPOLOGIES).map(([k, v]) => (
+                {(availableDevices.length ? availableDevices.map(device => [device.name, { name: `${device.name} (${device.qubits} qubits)` }]) : Object.entries(IBM_TOPOLOGIES)).map(([k, v]) => (
                   <option key={k} value={k}>{v.name}</option>
                 ))}
               </select>
             </div>
 
-            {IBM_TOPOLOGIES[selectedDevice] && (
+            {selectedTopology && (
               <div>
                 <div className="grid grid-2" style={{ gap: 12, marginBottom: 20 }}>
                   <div style={{ padding: 12, background: 'var(--bg-glass)', borderRadius: 8, border: '1px solid var(--border-glass)' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Physical Qubits</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent)' }}>{IBM_TOPOLOGIES[selectedDevice].qubits}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent)' }}>{selectedTopology.qubits}</div>
                   </div>
                   <div style={{ padding: 12, background: 'var(--bg-glass)', borderRadius: 8, border: '1px solid var(--border-glass)' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Quantum Volume</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>{IBM_TOPOLOGIES[selectedDevice].qv}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>{selectedTopology.qv}</div>
                   </div>
                   <div style={{ padding: 12, background: 'var(--bg-glass)', borderRadius: 8, border: '1px solid var(--border-glass)' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Avg T1 Relaxation</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b' }}>{IBM_TOPOLOGIES[selectedDevice].t1}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b' }}>{selectedTopology.t1}</div>
                   </div>
                   <div style={{ padding: 12, background: 'var(--bg-glass)', borderRadius: 8, border: '1px solid var(--border-glass)' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>CNOT Gate Error</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ef4444' }}>{IBM_TOPOLOGIES[selectedDevice].err2}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ef4444' }}>{selectedTopology.err2}</div>
                   </div>
                 </div>
 
                 <div style={{ padding: 20, background: '#0f172a', borderRadius: 10, color: 'white', textAlign: 'center' }}>
                   <h5 style={{ marginBottom: 6, color: '#38bdf8' }}>Coupling Graph Map</h5>
                   <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 16 }}>
-                    {IBM_TOPOLOGIES[selectedDevice].coupling}
+                    {selectedTopology.coupling}
                   </p>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
                     {[0, 1, 2, 3, 4, 5].map(q => (
