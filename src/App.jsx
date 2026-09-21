@@ -119,6 +119,7 @@ function MainLayout() {
           <Route path="/contests/:contestId" element={<ProtectedRoute><Contests /></ProtectedRoute>} />
           <Route path="/contests/:contestId/problems/:problemId" element={<ProtectedRoute><Contests /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminPanel /></ProtectedRoute>} />
+          <Route path="/admin/*" element={<ProtectedRoute requireAdmin><AdminPanel /></ProtectedRoute>} />
           <Route path="/instructor" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes></Suspense>

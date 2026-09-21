@@ -77,3 +77,13 @@ export async function submitContestProblem(contestId, problemId, submission) {
 }
 export async function getContestLeaderboard(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}/leaderboard`); }
 export async function getMyContestRating() { return request('/api/contests/me/rating'); }
+
+export const adminApi = {
+  dashboard: () => request('/api/admin/dashboard'),
+  users: (search = '') => request(`/api/admin/users${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  auditLogs: () => request('/api/admin/audit-logs'),
+  content: (entity, search = '') => request(`/api/admin/content/${encodeURIComponent(entity)}${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  createContent: (entity, values) => request(`/api/admin/content/${encodeURIComponent(entity)}`, { method: 'POST', body: JSON.stringify(values) }),
+  updateContent: (entity, id, values) => request(`/api/admin/content/${encodeURIComponent(entity)}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(values) }),
+  archiveContent: (entity, id) => request(`/api/admin/content/${encodeURIComponent(entity)}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};

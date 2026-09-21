@@ -57,3 +57,25 @@ class ContestSubmissionRequest(BaseModel):
         if any(token in value.lower() for token in blocked):
             raise ValueError("The submitted program contains an operation not allowed in the quantum sandbox.")
         return value
+
+
+class AdminContentRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=10000)
+    status: Literal["draft", "published", "archived"] = "draft"
+    sort_order: int = Field(default=0, ge=0, le=100000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminRoleRequest(BaseModel):
+    role: Literal["student", "admin"]
+
+
+class AdminAnnouncementRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=5000)
+    status: Literal["draft", "published", "archived"] = "draft"
+
+
+class AdminSettingRequest(BaseModel):
+    value: dict[str, Any] = Field(default_factory=dict)
