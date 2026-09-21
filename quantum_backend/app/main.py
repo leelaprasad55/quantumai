@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import health, quantum, ibm, jobs
+from app.routers import health, quantum, ibm, jobs, contests
 
 
 app = FastAPI(
@@ -42,6 +42,7 @@ app.include_router(health.router)
 app.include_router(quantum.router)
 app.include_router(ibm.router)
 app.include_router(jobs.router)
+app.include_router(contests.router)
 
 _backend_root = Path(__file__).resolve().parents[1]
 _frontend_dist = next(

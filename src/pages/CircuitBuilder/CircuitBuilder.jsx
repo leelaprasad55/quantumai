@@ -67,10 +67,10 @@ function qasmToOps(qasmText) {
   return { nQubits: Math.max(1, Math.min(5, nQ)), ops: newOps };
 }
 
-export default function CircuitBuilder() {
+export default function CircuitBuilder({ embedded = false, initialQubits = 2, gateBudget, onOpsChange } = {}) {
   const { user } = useAuth();
   const { trackGateUsage } = useProgress();
-  const [nQubits, setNQubits] = useState(2);
+  const [nQubits, setNQubits] = useState(initialQubits);
   const [ops, setOps] = useState([]); // {gate, target, control?, col, angle?}
   const [dragGate, setDragGate] = useState(null);
   const [shots, setShots] = useState(1000);
@@ -89,6 +89,7 @@ export default function CircuitBuilder() {
 
   // Load saved circuits & check URL query params for shared circuits
   useEffect(() => {
+    if (embedded) return;
     storage.getSavedCircuits(user?.id).then(setSaved);
     const params = new URLSearchParams(window.location.search);
     const sharedData = params.get('circuit');
@@ -101,7 +102,15 @@ export default function CircuitBuilder() {
         }
       } catch (e) { console.error('Failed to parse shared circuit', e); }
     }
-  }, [user]);
+  }, [user, embedded]);
+
+  useEffect(() => {
+    if (embedded) setNQubits(initialQubits);
+  }, [embedded, initialQubits]);
+
+  useEffect(() => {
+    onOpsChange?.(ops);
+  }, [ops, onOpsChange]);
 
   // Keep QASM text updated when ops change
   useEffect(() => {
@@ -151,6 +160,7 @@ export default function CircuitBuilder() {
   }, [liveState, nQubits, selectedQubitForBloch]);
 
   const addOp = (gate, qubit, col) => {
+    if (gate !== 'M' && gateBudget && ops.filter(op => op.gate !== 'M').length >= gateBudget) return;
     const isRotation = ROTATION_GATES.includes(gate);
     let newOp = { gate, target: qubit, col };
     if (isRotation) newOp.angle = rotAngle;

@@ -40,3 +40,20 @@ class IBMRunRequest(BaseModel):
         if any(token in value.lower() for token in blocked):
             raise ValueError("The submitted program contains an operation not allowed in the quantum sandbox.")
         return value
+
+
+class ContestSubmissionRequest(BaseModel):
+    submission_type: Literal["code", "ops"]
+    framework: Framework | None = None
+    code: str | None = Field(default=None, max_length=12000)
+    ops: list[dict[str, Any]] | None = Field(default=None, max_length=200)
+
+    @field_validator("code")
+    @classmethod
+    def reject_contest_dangerous_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        blocked = ("__import__", "open(", "eval(", "exec(", "os.", "subprocess", "socket", "requests", "urllib", "pathlib", "globals(", "locals(")
+        if any(token in value.lower() for token in blocked):
+            raise ValueError("The submitted program contains an operation not allowed in the quantum sandbox.")
+        return value

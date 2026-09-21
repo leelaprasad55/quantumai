@@ -5,6 +5,7 @@ import { useProgress } from '../../context/ProgressContext.jsx';
 import { storage } from '../../utils/storage.js';
 
 const NAV = [
+  { to: '/contests', icon: '🏁', label: 'Contests' },
   { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
   { to: '/roadmap', icon: '🗺️', label: 'My Roadmap' },
   { to: '/modules', icon: '📚', label: 'Modules' },

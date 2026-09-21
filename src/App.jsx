@@ -18,6 +18,7 @@ const Achievements = lazy(() => import('./pages/Achievements/Achievements.jsx'))
 const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel.jsx'));
 const QuantumRace = lazy(() => import('./pages/QuantumRace/QuantumRace.jsx'));
 const InstructorDashboard = lazy(() => import('./pages/Instructor/InstructorDashboard.jsx'));
+const Contests = lazy(() => import('./pages/Contests/Contests.jsx'));
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, loading } = useAuth();
@@ -114,6 +115,9 @@ function MainLayout() {
           <Route path="/skillmap" element={<ProtectedRoute><SkillMap /></ProtectedRoute>} />
           <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
           <Route path="/race" element={<ProtectedRoute><QuantumRace /></ProtectedRoute>} />
+          <Route path="/contests" element={<ProtectedRoute><Contests /></ProtectedRoute>} />
+          <Route path="/contests/:contestId" element={<ProtectedRoute><Contests /></ProtectedRoute>} />
+          <Route path="/contests/:contestId/problems/:problemId" element={<ProtectedRoute><Contests /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminPanel /></ProtectedRoute>} />
           <Route path="/instructor" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

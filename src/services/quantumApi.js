@@ -68,3 +68,12 @@ export async function submitIbmJob({ backend, shots, code }) {
 }
 
 export async function getIbmJob(jobId) { return request(`/api/jobs/ibm/${encodeURIComponent(jobId)}`); }
+
+export async function getContests() { return request('/api/contests'); }
+export async function getContest(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}`); }
+export async function getContestProblem(contestId, problemId) { return request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}`); }
+export async function submitContestProblem(contestId, problemId, submission) {
+  return request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}/submit`, { method: 'POST', body: JSON.stringify(submission) });
+}
+export async function getContestLeaderboard(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}/leaderboard`); }
+export async function getMyContestRating() { return request('/api/contests/me/rating'); }
