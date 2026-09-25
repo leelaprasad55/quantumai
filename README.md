@@ -47,6 +47,12 @@ The deployable application is one service: FastAPI serves the compiled React app
 
 ---
 
+## 🚀 Live Demo
+
+🔗 **Deployment:** https://quantumai-gkl0.onrender.com
+
+---
+
 ## ✨ Key Features
 
 | Feature | Description |
@@ -492,12 +498,6 @@ Accessible only to admin users. Contains three tabs:
 
 ---
 
-## 🔑 Default Admin Credentials
-
-```
-Email:    admin@quantumlearn.ai
-Password: admin123
-```
 
 The admin account is auto-seeded on first load if it doesn't exist.
 
