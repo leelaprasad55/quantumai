@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
+    supabase_service_role_key: str | None = None
 
     cors_origins: str = "http://localhost:5173"
 

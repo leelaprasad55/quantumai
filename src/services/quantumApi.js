@@ -53,8 +53,37 @@ export async function executeCircuit({ framework = 'qiskit', code, shots = 1024 
 
 export async function getCapabilities() { return request('/api/capabilities'); }
 
-export async function submitIbmJob({ backend, shots }) {
-  return request('/api/ibm/run', { method: 'POST', body: JSON.stringify({ backend, shots }) });
+export async function getIbmBackends() { return request('/api/ibm/backends'); }
+
+export function normalizeIbmJobSubmission(result) {
+  if (result?.success === true && typeof result.job_id === 'string' && result.job_id && typeof result.backend === 'string' && result.backend) {
+    return result;
+  }
+  throw new Error(result?.detail || result?.error || 'The quantum backend returned an incomplete IBM job response. Deploy the FastAPI backend and configure IBM_QUANTUM_API_KEY and IBM_QUANTUM_INSTANCE in Render.');
+}
+
+export async function submitIbmJob({ backend, shots, code }) {
+  const result = await request('/api/ibm/run', { method: 'POST', body: JSON.stringify({ backend, shots, code }) });
+  return normalizeIbmJobSubmission(result);
 }
 
 export async function getIbmJob(jobId) { return request(`/api/jobs/ibm/${encodeURIComponent(jobId)}`); }
+
+export async function getContests() { return request('/api/contests'); }
+export async function getContest(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}`); }
+export async function getContestProblem(contestId, problemId) { return request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}`); }
+export async function submitContestProblem(contestId, problemId, submission) {
+  return request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}/submit`, { method: 'POST', body: JSON.stringify(submission) });
+}
+export async function getContestLeaderboard(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}/leaderboard`); }
+export async function getMyContestRating() { return request('/api/contests/me/rating'); }
+
+export const adminApi = {
+  dashboard: () => request('/api/admin/dashboard'),
+  users: (search = '') => request(`/api/admin/users${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  auditLogs: () => request('/api/admin/audit-logs'),
+  content: (entity, search = '') => request(`/api/admin/content/${encodeURIComponent(entity)}${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  createContent: (entity, values) => request(`/api/admin/content/${encodeURIComponent(entity)}`, { method: 'POST', body: JSON.stringify(values) }),
+  updateContent: (entity, id, values) => request(`/api/admin/content/${encodeURIComponent(entity)}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(values) }),
+  archiveContent: (entity, id) => request(`/api/admin/content/${encodeURIComponent(entity)}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};

@@ -33,7 +33,6 @@
 - [Achievement System](#-achievement-system)
 - [Authentication & Authorization](#-authentication--authorization)
 - [Admin Panel](#-admin-panel)
-- [Default Admin Credentials](#-default-admin-credentials)
 - [Scripts](#-scripts)
 - [Contributing](#-contributing)
 
@@ -44,6 +43,10 @@
 **QuantumLearn AI** is a full-featured, single-page web application designed to teach quantum computing from absolute beginner to expert level. The platform combines a structured **24-module curriculum** with interactive tools — a drag-and-drop **Quantum Circuit Builder**, a real-time **3D Bloch Sphere**, an **AI-powered chatbot tutor** (backed by Groq LLM with offline fallback), a **Classical vs. Quantum Race simulator**, and an **adaptive learning engine** that generates personalized roadmaps based on each student's assessed skill profile.
 
 The deployable application is one service: FastAPI serves the compiled React app and its `/api` quantum endpoints. Supabase provides authentication and persistent learner data.
+
+### Live Demo
+
+- Deployment: https://quantumai-gkl0.onrender.com
 
 ---
 
@@ -492,18 +495,7 @@ Accessible only to admin users. Contains three tabs:
 
 ---
 
-## 🔑 Default Admin Credentials
-
-```
-Email:    admin@quantumlearn.ai
-Password: admin123
-```
-
-The admin account is auto-seeded on first load if it doesn't exist.
-
----
-
-## 📜 Scripts
+##  Scripts
 
 | Command | Description |
 |---|---|

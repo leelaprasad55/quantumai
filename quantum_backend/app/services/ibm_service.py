@@ -39,11 +39,30 @@ def get_backends():
     return result
 
 
-def submit_bell(backend_name=None, shots=1024):
-    from qiskit import QuantumCircuit
+def submit_circuit(code=None, backend_name=None, shots=1024):
+    """Submit a real job to IBM Quantum hardware.
+
+    If `code` (Qiskit source, e.g. from the Lab's Code tab) is supplied, it is
+    compiled with the same restricted AST parser used for local simulation
+    (app.services.qiskit_service.compile_qiskit) — the exact circuit the user
+    built is what gets sent to the real QPU. If no code is supplied, falls
+    back to a fixed 2-qubit Bell-state demo circuit for backward compatibility.
+    """
     from qiskit.transpiler import generate_preset_pass_manager
     from qiskit_ibm_runtime import SamplerV2 as Sampler
+    from app.services.qiskit_service import compile_qiskit
     service = get_service()
+
+    if code:
+        circuit = compile_qiskit(code)
+        if circuit.num_clbits == 0:
+            circuit.measure_all()
+    else:
+        from qiskit import QuantumCircuit
+        circuit = QuantumCircuit(2)
+        circuit.h(0)
+        circuit.cx(0, 1)
+        circuit.measure_all()
 
     if backend_name:
         backend = service.backend(backend_name)
@@ -52,21 +71,17 @@ def submit_bell(backend_name=None, shots=1024):
             raise RuntimeError(
                 f"Backend {backend_name} is not operational."
             )
-        if backend.num_qubits < 2:
+        if backend.num_qubits < circuit.num_qubits:
             raise RuntimeError(
-                f"Backend {backend_name} has fewer than 2 qubits."
+                f"Backend {backend_name} has {backend.num_qubits} qubits, "
+                f"fewer than the {circuit.num_qubits} this circuit needs."
             )
     else:
         backend = service.least_busy(
             operational=True,
             simulator=False,
-            min_num_qubits=2,
+            min_num_qubits=circuit.num_qubits,
         )
-
-    circuit = QuantumCircuit(2)
-    circuit.h(0)
-    circuit.cx(0, 1)
-    circuit.measure_all()
 
     pass_manager = generate_preset_pass_manager(
         backend=backend,

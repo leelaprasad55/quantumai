@@ -29,3 +29,53 @@ class AlgorithmRequest(BaseModel):
 class IBMRunRequest(BaseModel):
     backend: str | None = Field(default=None, max_length=128)
     shots: int = Field(default=1024, ge=100, le=4096)
+    code: str | None = Field(default=None, max_length=12000)
+
+    @field_validator("code")
+    @classmethod
+    def reject_dangerous_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        blocked = ("__import__", "open(", "eval(", "exec(", "os.", "subprocess", "socket", "requests", "urllib", "pathlib", "globals(", "locals(")
+        if any(token in value.lower() for token in blocked):
+            raise ValueError("The submitted program contains an operation not allowed in the quantum sandbox.")
+        return value
+
+
+class ContestSubmissionRequest(BaseModel):
+    submission_type: Literal["code", "ops"]
+    framework: Framework | None = None
+    code: str | None = Field(default=None, max_length=12000)
+    ops: list[dict[str, Any]] | None = Field(default=None, max_length=200)
+
+    @field_validator("code")
+    @classmethod
+    def reject_contest_dangerous_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        blocked = ("__import__", "open(", "eval(", "exec(", "os.", "subprocess", "socket", "requests", "urllib", "pathlib", "globals(", "locals(")
+        if any(token in value.lower() for token in blocked):
+            raise ValueError("The submitted program contains an operation not allowed in the quantum sandbox.")
+        return value
+
+
+class AdminContentRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=10000)
+    status: Literal["draft", "published", "archived"] = "draft"
+    sort_order: int = Field(default=0, ge=0, le=100000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminRoleRequest(BaseModel):
+    role: Literal["student", "admin"]
+
+
+class AdminAnnouncementRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=5000)
+    status: Literal["draft", "published", "archived"] = "draft"
+
+
+class AdminSettingRequest(BaseModel):
+    value: dict[str, Any] = Field(default_factory=dict)
