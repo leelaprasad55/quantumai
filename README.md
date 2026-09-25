@@ -34,7 +34,6 @@
 - [Achievement System](#-achievement-system)
 - [Authentication & Authorization](#-authentication--authorization)
 - [Admin Panel](#-admin-panel)
-- [Default Admin Credentials](#-default-admin-credentials)
 - [Scripts](#-scripts)
 - [Contributing](#-contributing)
 
