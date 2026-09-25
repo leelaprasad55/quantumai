@@ -19,6 +19,7 @@
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
+- [Live Demo](#-live-demo)
 - [Key Features](#-key-features)
 - [Tech Stack](#-tech-stack)
 - [Project Architecture](#-project-architecture)
