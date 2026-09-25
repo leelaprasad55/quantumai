@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas import AdminContentRequest, AdminRoleRequest
+from app.schemas import AdminContentRequest, AdminRoleRequest, AdminSettingRequest
 from app.security import require_admin
 from app.services.admin_service import CONTENT_TABLES, store
 
@@ -17,6 +17,16 @@ def page_args(page: int, page_size: int):
 @router.get("/dashboard")
 async def dashboard(user=Depends(require_admin)):
     return {"success": True, "metrics": await store.dashboard()}
+
+
+@router.get("/settings")
+async def get_settings(user=Depends(require_admin)):
+    return {"success": True, "settings": await store.platform_settings()}
+
+
+@router.put("/settings")
+async def update_settings(request: AdminSettingRequest, user=Depends(require_admin)):
+    return {"success": True, "settings": await store.update_platform_settings(request.model_dump(), user["id"])}
 
 
 @router.get("/users")

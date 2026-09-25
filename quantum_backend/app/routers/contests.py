@@ -3,6 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from app.schemas import ContestSubmissionRequest
 from app.security import require_configured_auth
 from app.services.contest_service import contest_status, queue_hardware_fidelity, score_submission, store
+from app.services.admin_service import DEFAULT_PLATFORM_SETTINGS, store as admin_store
 
 router = APIRouter(prefix="/api/contests", tags=["Contests"])
 
@@ -42,6 +43,17 @@ async def submit(contest_id: str, problem_id: str, request: ContestSubmissionReq
     if not contest or contest_status(contest) != "live": raise HTTPException(400, "Submissions are only accepted while a contest is live.")
     problem = await store.problem(contest_id, problem_id, private=True)
     if not problem: raise HTTPException(404, "Contest problem not found.")
+    try:
+        platform_settings = await admin_store.platform_settings()
+    except RuntimeError:
+        # An unavailable optional settings record must not make the protected
+        # sample contest disappear; its schema default remains safe.
+        platform_settings = DEFAULT_PLATFORM_SETTINGS
+    previous = await store.submissions(problem["id"], (user or {}).get("id", "local-user"))
+    if previous and not platform_settings["allow_contest_resubmissions"]:
+        raise HTTPException(400, "This contest problem allows one submission per participant.")
+    if len(previous) >= platform_settings["contest_submission_limit"]:
+        raise HTTPException(400, "You have reached the submission limit for this contest problem.")
     try:
         submission = await score_submission(problem, (user or {}).get("id", "local-user"), request)
     except ValueError as error:

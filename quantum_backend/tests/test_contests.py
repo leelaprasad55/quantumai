@@ -26,3 +26,7 @@ def test_ops_converter_rejects_unknown_gate_before_compilation():
 def test_demo_contest_is_live_without_relying_on_its_end_timestamp():
     contest = {**store.sample_contest, "end_time": "2000-01-01T00:00:00+00:00"}
     assert contest_status(contest) == "live"
+
+
+def test_demo_contest_contains_circuit_and_coding_challenges():
+    assert {problem["contest_type"] for problem in store.sample_problems} == {"circuit_building", "coding"}

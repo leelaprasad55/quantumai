@@ -21,6 +21,12 @@ CONTENT_TABLES = {
     "announcements": "announcements",
 }
 
+DEFAULT_PLATFORM_SETTINGS = {
+    "contest_submission_limit": 10,
+    "allow_contest_resubmissions": True,
+    "maintenance_message": "",
+}
+
 
 class AdminStore:
     def __init__(self):
@@ -40,6 +46,17 @@ class AdminStore:
     async def audit(self, admin_id: str, action: str, entity_type: str, entity_id: str | None, metadata: dict[str, Any] | None = None):
         payload = {"admin_id": admin_id, "action": action, "entity_type": entity_type, "entity_id": entity_id, "metadata": metadata or {}}
         await self.request("POST", "audit_logs", json=payload)
+
+    async def platform_settings(self):
+        rows = await self.request("GET", "admin_settings?setting_key=eq.platform&select=value")
+        stored = rows[0].get("value") if rows else {}
+        return {**DEFAULT_PLATFORM_SETTINGS, **(stored if isinstance(stored, dict) else {})}
+
+    async def update_platform_settings(self, values: dict[str, Any], admin_id: str):
+        payload = {"setting_key": "platform", "value": values, "updated_by": admin_id, "updated_at": datetime.now(timezone.utc).isoformat()}
+        rows = await self.request("POST", "admin_settings?on_conflict=setting_key", json=payload, headers={"Prefer": "resolution=merge-duplicates,return=representation"})
+        await self.audit(admin_id, "update", "platform_settings", "platform", {"changed_keys": sorted(values)})
+        return {**DEFAULT_PLATFORM_SETTINGS, **(rows[0].get("value") if rows else values)}
 
     async def dashboard(self):
         # Only real persisted totals are returned; unavailable metrics remain null.

@@ -78,4 +78,6 @@ class AdminAnnouncementRequest(BaseModel):
 
 
 class AdminSettingRequest(BaseModel):
-    value: dict[str, Any] = Field(default_factory=dict)
+    contest_submission_limit: int = Field(default=10, ge=1, le=50)
+    allow_contest_resubmissions: bool = True
+    maintenance_message: str = Field(default="", max_length=500)

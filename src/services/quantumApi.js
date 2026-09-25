@@ -80,7 +80,10 @@ export async function getMyContestRating() { return request('/api/contests/me/ra
 
 export const adminApi = {
   dashboard: () => request('/api/admin/dashboard'),
+  settings: () => request('/api/admin/settings'),
+  updateSettings: (values) => request('/api/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
   users: (search = '') => request(`/api/admin/users${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  updateUserRole: (userId, role) => request(`/api/admin/users/${encodeURIComponent(userId)}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   auditLogs: () => request('/api/admin/audit-logs'),
   content: (entity, search = '') => request(`/api/admin/content/${encodeURIComponent(entity)}${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   createContent: (entity, values) => request(`/api/admin/content/${encodeURIComponent(entity)}`, { method: 'POST', body: JSON.stringify(values) }),

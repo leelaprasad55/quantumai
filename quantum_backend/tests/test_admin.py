@@ -45,3 +45,22 @@ def test_admin_content_schema_rejects_invalid_title(monkeypatch):
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+def test_admin_settings_are_secured_and_validated(monkeypatch):
+    async def admin_user():
+        return {"id": "00000000-0000-0000-0000-000000000001"}
+
+    async def settings():
+        return {"contest_submission_limit": 10, "allow_contest_resubmissions": True, "maintenance_message": ""}
+
+    monkeypatch.setattr(store, "platform_settings", settings)
+    app.dependency_overrides[require_admin] = admin_user
+    try:
+        response = client.get("/api/admin/settings")
+        invalid = client.put("/api/admin/settings", json={"contest_submission_limit": 0})
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["settings"]["contest_submission_limit"] == 10
+    assert invalid.status_code == 422
