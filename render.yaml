@@ -9,6 +9,8 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: IBM_QUANTUM_API_KEY
         sync: false
       - key: IBM_QUANTUM_INSTANCE
@@ -16,4 +18,4 @@ services:
       - key: QBRAID_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: https://quantumlearn.onrender.com
+        value: https://quantumai-gkl0.onrender.com

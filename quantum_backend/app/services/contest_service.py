@@ -21,6 +21,10 @@ def _now() -> datetime:
 
 
 def contest_status(contest: dict[str, Any]) -> str:
+    # The judge-facing sample is explicitly exempt from normal expiry.  All
+    # ordinary contests continue to use their scheduled time window.
+    if contest.get("is_demo"):
+        return "live"
     now = _now()
     start = datetime.fromisoformat(str(contest["start_time"]).replace("Z", "+00:00"))
     end = datetime.fromisoformat(str(contest["end_time"]).replace("Z", "+00:00"))
@@ -83,12 +87,14 @@ class ContestStore:
         self.key = settings.supabase_service_role_key
         self.local_submissions: list[dict[str, Any]] = []
         self.local = not (self.base and self.key)
+        self._demo_seeded = self.local
+        self._demo_seed_lock = asyncio.Lock()
         now = _now()
         self.sample_contest = {
-            "id": "00000000-0000-0000-0000-000000000001", "title": "Quantum Foundations Sprint",
-            "description": "Build a Bell pair with a compact quantum circuit.",
-            "start_time": (now - timedelta(days=1)).replace(microsecond=0).isoformat(), "end_time": (now + timedelta(days=7)).replace(microsecond=0).isoformat(),
-            "is_rated": False, "created_at": now.isoformat(),
+            "id": "00000000-0000-0000-0000-000000000001", "demo_key": "quantumlearn-ai-sample-contest-v1",
+            "title": "QuantumLearn AI — Sample Contest", "description": "Permanent demonstration contest for testing the QuantumLearn AI contest platform.",
+            "start_time": "2024-01-01T00:00:00+00:00", "end_time": "2100-01-01T00:00:00+00:00",
+            "is_rated": False, "is_demo": True, "created_at": now.isoformat(),
         }
         self.sample_problem = {
             "id": "00000000-0000-0000-0000-000000000011", "contest_id": self.sample_contest["id"],
@@ -97,6 +103,13 @@ class ContestStore:
             "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "CNOT", "control": 0, "target": 1, "col": 1}],
             "pass_threshold": 0.95, "order_index": 0,
         }
+        self.sample_problems = [
+            self.sample_problem,
+            {"id": "00000000-0000-0000-0000-000000000012", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-superposition-v1", "title": "Qubit and superposition", "statement": "Put one qubit into an equal superposition using one gate.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 1, "gate_budget": 1, "par_gates": 1, "par_depth": 1, "reference_ops": [{"gate": "H", "target": 0, "col": 0}], "pass_threshold": .95, "order_index": 1},
+            {"id": "00000000-0000-0000-0000-000000000013", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-bit-flip-v1", "title": "Quantum gate fundamentals", "statement": "Transform |0⟩ to |1⟩ with the appropriate single-qubit gate.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 1, "gate_budget": 1, "par_gates": 1, "par_depth": 1, "reference_ops": [{"gate": "X", "target": 0, "col": 0}], "pass_threshold": .95, "order_index": 2},
+            {"id": "00000000-0000-0000-0000-000000000014", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-uniform-v1", "title": "Two-qubit superposition", "statement": "Prepare an equal distribution across all two-qubit basis states.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 2, "gate_budget": 2, "par_gates": 2, "par_depth": 1, "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "H", "target": 1, "col": 0}], "pass_threshold": .95, "order_index": 3},
+            {"id": "00000000-0000-0000-0000-000000000015", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-ghz-v1", "title": "Basic quantum algorithm", "statement": "Prepare a three-qubit GHZ state using a compact circuit.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 3, "gate_budget": 3, "par_gates": 3, "par_depth": 3, "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "CNOT", "control": 0, "target": 1, "col": 1}, {"gate": "CNOT", "control": 1, "target": 2, "col": 2}], "pass_threshold": .95, "order_index": 4},
+        ]
 
     def _headers(self):
         return {"apikey": self.key, "Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
@@ -109,20 +122,43 @@ class ContestStore:
             raise RuntimeError(f"Contest storage request failed: {response.text}")
         return response.json() if response.content else None
 
+    async def ensure_demo_contest(self):
+        """Idempotently restore the permanent sample after a fresh DB restore."""
+        if self._demo_seeded:
+            return
+        async with self._demo_seed_lock:
+            if self._demo_seeded:
+                return
+            contest = {key: value for key, value in self.sample_contest.items() if key != "id" and key != "created_at"}
+            rows = await self._request("POST", "contests?on_conflict=demo_key", json=contest, headers={**self._headers(), "Prefer": "resolution=merge-duplicates,return=representation"})
+            contest_id = (rows or [{}])[0].get("id")
+            if not contest_id:
+                existing = await self._request("GET", "contests?demo_key=eq.quantumlearn-ai-sample-contest-v1&select=id")
+                contest_id = existing[0]["id"]
+            for index, sample in enumerate(self.sample_problems):
+                problem = {key: value for key, value in sample.items() if key not in {"id", "contest_id"}}
+                problem["demo_key"] = problem.get("demo_key") or "quantumlearn-sample-bell-v1"
+                problem["contest_id"] = contest_id
+                problem["order_index"] = index
+                await self._request("POST", "contest_problems?on_conflict=demo_key", json=problem, headers={**self._headers(), "Prefer": "resolution=ignore-duplicates"})
+            self._demo_seeded = True
+
     async def contests(self):
         if self.local: return [self.sample_contest]
+        await self.ensure_demo_contest()
         return await self._request("GET", "contests?select=*&order=start_time.desc")
 
     async def contest(self, contest_id: str):
         if self.local:
             return self.sample_contest if contest_id == self.sample_contest["id"] else None
+        await self.ensure_demo_contest()
         rows = await self._request("GET", f"contests?id=eq.{contest_id}&select=*")
         return rows[0] if rows else None
 
     async def problems(self, contest_id: str, private: bool = False):
         fields = "*" if private else "id,contest_id,title,statement,contest_type,framework,qubit_budget,gate_budget,par_gates,par_depth,pass_threshold,order_index"
         if self.local:
-            return [self.sample_problem if private else {key: value for key, value in self.sample_problem.items() if key != "reference_ops"}] if contest_id == self.sample_contest["id"] else []
+            return [problem if private else {key: value for key, value in problem.items() if key != "reference_ops"} for problem in self.sample_problems] if contest_id == self.sample_contest["id"] else []
         return await self._request("GET", f"contest_problems?contest_id=eq.{contest_id}&select={fields}&order=order_index")
 
     async def problem(self, contest_id: str, problem_id: str, private: bool = False):
