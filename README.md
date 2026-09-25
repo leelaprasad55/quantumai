@@ -6,14 +6,6 @@
   <em>An AI-Powered Adaptive Quantum Computing Learning Platform</em>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/React-19.1-61DAFB?logo=react&logoColor=white" alt="React" />
-  <img src="https://img.shields.io/badge/Vite-8.2-646CFF?logo=vite&logoColor=white" alt="Vite" />
-  <img src="https://img.shields.io/badge/AI_Tutor-Groq_LLM-FF6B35?logo=openai&logoColor=white" alt="AI Tutor" />
-  <img src="https://img.shields.io/badge/License-Private-red" alt="License" />
-  <img src="https://img.shields.io/badge/Modules-24-blueviolet" alt="Modules" />
-</p>
-
 ---
 
 ## 📋 Table of Contents
