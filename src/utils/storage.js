@@ -1,19 +1,5 @@
 import { supabase } from '../lib/supabaseClient.js';
 
-const getUserLocalStorageKey = (baseKey, userId) => userId ? `${baseKey}_${userId}` : `${baseKey}_guest`;
-
-const readUserLocalStorage = (baseKey, userId) => {
-  try {
-    return JSON.parse(localStorage.getItem(getUserLocalStorageKey(baseKey, userId)) || '[]');
-  } catch {
-    return [];
-  }
-};
-
-const writeUserLocalStorage = (baseKey, userId, value) => {
-  localStorage.setItem(getUserLocalStorageKey(baseKey, userId), JSON.stringify(value));
-};
-
 export const storage = {
   // ----------------------------------------------------
   // PROGRESS & SKILLS
@@ -199,128 +185,64 @@ export const storage = {
   // CIRCUITS & LAB
   // ----------------------------------------------------
   async getSavedCircuits(userId) {
-    let supabaseCircuits = [];
-    if (userId && supabase) {
-      const { data, error } = await supabase
-        .from('saved_circuits')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        supabaseCircuits = data.map(c => ({ id: c.id, name: c.name, nQubits: c.num_qubits, ops: c.operations, date: c.created_at }));
-      }
-    }
-
-    const localCircuits = readUserLocalStorage('saved_circuits', userId);
-
-    const map = new Map();
-    [...supabaseCircuits, ...localCircuits].forEach(c => {
-      if (c && c.name && !map.has(c.name)) {
-        map.set(c.name, c);
-      }
-    });
-    return Array.from(map.values());
+    if (!userId || !supabase) return [];
+    const { data, error } = await supabase
+      .from('saved_circuits')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(`Unable to load saved circuits: ${error.message}`);
+    return (data || []).map(c => ({ id: c.id, name: c.name, nQubits: c.num_qubits, ops: c.operations, date: c.created_at }));
   },
 
   async insertCircuit(userId, name, nQubits, ops) {
-    if (!userId && !supabase) return null;
-
-    const item = {
-      id: generateId(),
-      name,
-      nQubits,
-      num_qubits: nQubits,
-      ops,
-      operations: ops,
-      created_at: new Date().toISOString(),
-      date: new Date().toISOString()
-    };
-
-    if (userId && supabase) {
-      const { error } = await supabase
-        .from('saved_circuits')
-        .insert({ user_id: userId, name, num_qubits: nQubits, operations: ops });
-      if (error) console.warn('Supabase circuit save warning (falling back to localStorage):', error.message);
-    }
-
-    try {
-      const existing = readUserLocalStorage('saved_circuits', userId);
-      const updated = [item, ...existing.filter(c => c.name !== name)];
-      writeUserLocalStorage('saved_circuits', userId, updated);
-    } catch (e) { console.error('LocalStorage error saving circuit:', e); }
-
-    return item;
+    if (!userId || !supabase) throw new Error('Sign in with Supabase before saving a circuit.');
+    const { data, error } = await supabase
+      .from('saved_circuits')
+      .insert({ user_id: userId, name, num_qubits: nQubits, operations: ops })
+      .select()
+      .single();
+    if (error) throw new Error(`Unable to save circuit: ${error.message}`);
+    return { id: data.id, name: data.name, nQubits: data.num_qubits, ops: data.operations, date: data.created_at };
   },
 
   async getLabExperiments(userId) {
-    let supabaseExps = [];
-    if (userId && supabase) {
-      const { data, error } = await supabase
-        .from('lab_experiments')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        supabaseExps = data.map(l => ({
-          id: l.id,
-          name: l.name,
-          preset: l.preset_name,
-          shots: l.num_shots,
-          noiseModel: l.noise_model,
-          fidelity: Number(l.fidelity),
-          results: l.results,
-          date: l.created_at
-        }));
-      }
-    }
-
-    const localExps = readUserLocalStorage('lab_experiments', userId);
-
-    const map = new Map();
-    [...supabaseExps, ...localExps].forEach(e => {
-      if (e && e.name && !map.has(e.name)) {
-        map.set(e.name, e);
-      }
-    });
-    return Array.from(map.values());
+    if (!userId || !supabase) return [];
+    const { data, error } = await supabase
+      .from('lab_experiments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(`Unable to load lab experiments: ${error.message}`);
+    return (data || []).map(l => ({
+      id: l.id,
+      name: l.name,
+      preset: l.preset_name,
+      shots: l.num_shots,
+      noiseModel: l.noise_model,
+      fidelity: Number(l.fidelity),
+      results: l.results,
+      date: l.created_at,
+    }));
   },
 
   async insertLabExperiment(userId, exp) {
-    if (!userId && !supabase) return null;
-
-    const item = {
-      id: generateId(),
-      name: exp.name,
-      preset: exp.preset,
-      shots: exp.shots,
-      noiseModel: exp.noiseModel,
-      fidelity: exp.fidelity,
-      results: exp.results,
-      date: new Date().toISOString()
-    };
-
-    if (userId && supabase) {
-      const { error } = await supabase
-        .from('lab_experiments')
-        .insert({
-          user_id: userId,
-          name: exp.name,
-          preset_name: exp.preset,
-          num_shots: exp.shots,
-          noise_model: exp.noiseModel,
-          fidelity: Math.min(1, Math.max(0, Number(exp.fidelity || 0) / 100)),
-          results: exp.results
-        });
-      if (error) console.warn('Supabase lab save warning (falling back to localStorage):', error.message);
-    }
-
-    try {
-      const existing = readUserLocalStorage('lab_experiments', userId);
-      const updated = [item, ...existing.filter(e => e.name !== exp.name)];
-      writeUserLocalStorage('lab_experiments', userId, updated);
-    } catch (e) { console.error('LocalStorage error saving lab exp:', e); }
-
-    return item;
+    if (!userId || !supabase) throw new Error('Sign in with Supabase before saving a lab experiment.');
+    const { data, error } = await supabase
+      .from('lab_experiments')
+      .insert({
+        user_id: userId,
+        name: exp.name,
+        preset_name: exp.preset,
+        num_shots: exp.shots,
+        noise_model: exp.noiseModel,
+        fidelity: Math.min(1, Math.max(0, Number(exp.fidelity || 0) / 100)),
+        results: exp.results,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(`Unable to save lab experiment: ${error.message}`);
+    return { id: data.id, name: data.name, preset: data.preset_name, shots: data.num_shots, noiseModel: data.noise_model, fidelity: Number(data.fidelity), results: data.results, date: data.created_at };
   },
 
   async incrementLabExperiments(userId) {
@@ -342,16 +264,9 @@ export const storage = {
   },
   
   async deleteLabExperiment(expId, userId) {
-    if (expId && supabase) {
-      let query = supabase.from('lab_experiments').delete().eq('id', expId);
-      if (userId) query = query.eq('user_id', userId);
-      await query;
-    }
-    try {
-      const existing = readUserLocalStorage('lab_experiments', userId);
-      const updated = existing.filter(e => e.id !== expId);
-      writeUserLocalStorage('lab_experiments', userId, updated);
-    } catch (e) { console.error('LocalStorage error deleting lab exp:', e); }
+    if (!expId || !userId || !supabase) throw new Error('Sign in with Supabase before deleting a lab experiment.');
+    const { error } = await supabase.from('lab_experiments').delete().eq('id', expId).eq('user_id', userId);
+    if (error) throw new Error(`Unable to delete lab experiment: ${error.message}`);
   },
 
   // ----------------------------------------------------
@@ -484,6 +399,219 @@ export const storage = {
   },
 
   // ----------------------------------------------------
+  // ASSESSMENTS & FEEDBACK
+  // ----------------------------------------------------
+  async getAssessments() {
+    if (!supabase) return [];
+    const { data, error } = await supabase.rpc('get_instructor_assessments');
+    if (error) {
+      console.error('Error fetching assessments:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
+  async createAssessment(assessment) {
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from('assessments')
+      .insert({
+        title: assessment.title,
+        description: assessment.description || '',
+        created_by: assessment.created_by,
+        assessment_type: assessment.assessment_type || 'quiz',
+        difficulty: assessment.difficulty || 'medium',
+        duration_minutes: Number(assessment.duration_minutes || 30),
+        status: assessment.status || 'draft',
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error('Error creating assessment:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async updateAssessment(id, updates) {
+    if (!supabase || !id) return null;
+    const { data, error } = await supabase
+      .from('assessments')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) {
+      console.error('Error updating assessment:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async deleteAssessment(id) {
+    if (!supabase || !id) return false;
+    const { error } = await supabase.from('assessments').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting assessment:', error.message);
+      return false;
+    }
+    return true;
+  },
+
+  async assignAssessment(assessmentId, studentId, assignedBy, dueDate = null) {
+    if (!supabase || !assessmentId || !studentId) return null;
+    const { data, error } = await supabase
+      .from('assessment_assignments')
+      .upsert({
+        assessment_id: assessmentId,
+        student_id: studentId,
+        assigned_by: assignedBy,
+        due_date: dueDate,
+      }, { onConflict: 'assessment_id,student_id' })
+      .select()
+      .single();
+    if (error) {
+      console.error('Error assigning assessment:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async getAssignedAssessments(studentId) {
+    if (!supabase || !studentId) return [];
+    const { data, error } = await supabase
+      .from('assessment_assignments')
+      .select('*, assessments(*)')
+      .eq('student_id', studentId)
+      .order('assigned_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching assigned assessments:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
+  async submitAssessment(assessmentId, studentId, answers) {
+    if (!supabase || !assessmentId || !studentId) return null;
+    const { data, error } = await supabase
+      .from('assessment_submissions')
+      .upsert({
+        assessment_id: assessmentId,
+        student_id: studentId,
+        answers,
+        status: 'submitted',
+        submitted_at: new Date().toISOString(),
+      }, { onConflict: 'assessment_id,student_id' })
+      .select()
+      .single();
+    if (error) {
+      console.error('Error submitting assessment:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async getAssessmentSubmissions(assessmentId) {
+    if (!supabase || !assessmentId) return [];
+    const { data, error } = await supabase
+      .from('assessment_submissions')
+      .select('*')
+      .eq('assessment_id', assessmentId)
+      .order('submitted_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching assessment submissions:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
+  async gradeAssessment(submissionId, score, feedback, reviewedBy) {
+    if (!supabase || !submissionId) return null;
+    const { data, error } = await supabase
+      .from('assessment_submissions')
+      .update({
+        score,
+        feedback,
+        reviewed_by: reviewedBy,
+        reviewed_at: new Date().toISOString(),
+        status: 'graded',
+      })
+      .eq('id', submissionId)
+      .select()
+      .single();
+    if (error) {
+      console.error('Error grading assessment:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async getInstructorFeedback(studentId) {
+    if (!supabase || !studentId) return [];
+    const { data, error } = await supabase
+      .from('instructor_feedback')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching instructor feedback:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
+  async sendInstructorFeedback({ instructorId, studentId, moduleId, message }) {
+    if (!supabase || !instructorId || !studentId || !message) return null;
+    const { data, error } = await supabase
+      .from('instructor_feedback')
+      .insert({
+        instructor_id: instructorId,
+        student_id: studentId,
+        module_id: moduleId || null,
+        message,
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error('Error sending instructor feedback:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async assignLearningPath({ instructorId, studentId, title, description = '' }) {
+    if (!supabase || !instructorId || !studentId || !title?.trim()) return null;
+    const { data, error } = await supabase
+      .from('learning_path_assignments')
+      .insert({ instructor_id: instructorId, student_id: studentId, title: title.trim(), description: description.trim() || null })
+      .select()
+      .single();
+    if (error) {
+      console.error('Error assigning learning path:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  async getInstructorLearningPaths(instructorId) {
+    if (!supabase || !instructorId) return [];
+    const { data, error } = await supabase
+      .from('learning_path_assignments')
+      .select('*')
+      .eq('instructor_id', instructorId)
+      .eq('status', 'assigned')
+      .order('assigned_at', { ascending: false });
+    if (error) {
+      console.error('Error loading learning paths:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
+  // ----------------------------------------------------
   // AVATAR STORAGE
   // ----------------------------------------------------
   async uploadAvatar(userId, file) {
@@ -505,7 +633,6 @@ export const storage = {
     return data.publicUrl;
   },
 
-  remove(key) { localStorage.removeItem(key); }
 };
 
 export function createDefaultProgress() {
@@ -537,6 +664,3 @@ export function createDefaultSkills() {
   };
 }
 
-export function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}

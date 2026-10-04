@@ -69,14 +69,12 @@ export async function submitIbmJob({ backend, shots, code }) {
 
 export async function getIbmJob(jobId) { return request(`/api/jobs/ibm/${encodeURIComponent(jobId)}`); }
 
-export async function getContests() { return request('/api/contests'); }
-export async function getContest(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}`); }
-export async function getContestProblem(contestId, problemId) { return request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}`); }
-export async function submitContestProblem(contestId, problemId, submission) {
-  return request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}/submit`, { method: 'POST', body: JSON.stringify(submission) });
-}
-export async function getContestLeaderboard(contestId) { return request(`/api/contests/${encodeURIComponent(contestId)}/leaderboard`); }
-export async function getMyContestRating() { return request('/api/contests/me/rating'); }
+export const getContests = () => request('/api/contests');
+export const getContest = (contestId) => request(`/api/contests/${encodeURIComponent(contestId)}`);
+export const getContestProblem = (contestId, problemId) => request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}`);
+export const submitContestProblem = (contestId, problemId, submission) => request(`/api/contests/${encodeURIComponent(contestId)}/problems/${encodeURIComponent(problemId)}/submit`, { method: 'POST', body: JSON.stringify(submission) });
+export const getContestLeaderboard = (contestId) => request(`/api/contests/${encodeURIComponent(contestId)}/leaderboard`);
+export const getMyContestRating = () => request('/api/contests/me/rating');
 
 export const adminApi = {
   dashboard: () => request('/api/admin/dashboard'),

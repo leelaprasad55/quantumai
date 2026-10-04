@@ -2,7 +2,7 @@
 -- QUANTUMLEARN AI - ROW LEVEL SECURITY (RLS) POLICIES
 -- ==========================================
 
--- 1. Helper function to check if the current user is an admin
+-- 1. Helper functions to check the current user role
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -12,6 +12,36 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.is_instructor()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles
+        WHERE id = auth.uid()
+        AND role = 'instructor'
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_instructor_or_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles
+        WHERE id = auth.uid()
+        AND role IN ('instructor', 'admin')
+    );
+$$;
 
 
 -- ==========================================

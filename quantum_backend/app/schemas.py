@@ -68,7 +68,7 @@ class AdminContentRequest(BaseModel):
 
 
 class AdminRoleRequest(BaseModel):
-    role: Literal["student", "admin"]
+    role: Literal["student", "instructor", "admin"]
 
 
 class AdminAnnouncementRequest(BaseModel):

@@ -208,11 +208,13 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
   const cellOps = (q, c) => ops.filter(o => o.target === q && o.col === c);
 
   return (
-    <div className="page fade-in">
-      <div className="page-header">
-        <h1 className="page-title">⚡ Quantum Circuit Builder</h1>
-        <p className="page-subtitle">Drag gates onto qubit wires, see live state probabilities, and visualize on the Bloch sphere</p>
-      </div>
+    <div className={embedded ? '' : 'page fade-in'}>
+      {!embedded && (
+        <div className="page-header">
+          <h1 className="page-title">⚡ Quantum Circuit Builder</h1>
+          <p className="page-subtitle">Drag gates onto qubit wires, see live state probabilities, and visualize on the Bloch sphere</p>
+        </div>
+      )}
 
       {/* Gate Palette */}
       <div className="gate-palette" style={{ marginBottom: 16, flexDirection: 'column', gap: 12 }}>
@@ -262,9 +264,10 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
         {/* Qubit selector + Mode Toggle + Share + Explain button */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, width: 60 }}>Qubits</span>
-          {[1,2,3,4,5].map(n => (
+          {!embedded && [1,2,3,4,5].map(n => (
             <button key={n} className={`btn btn-sm ${nQubits === n ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setNQubits(n); clear(); }}>{n}</button>
           ))}
+          {embedded && <span style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 700 }}>{nQubits}</span>}
 
           <div style={{ marginLeft: 16, display: 'flex', gap: 4, background: 'var(--bg-glass)', padding: 3, borderRadius: 6, border: '1px solid var(--border-glass)' }}>
             <button
@@ -283,6 +286,7 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
             </button>
           </div>
 
+          {!embedded && (
           <button
             className="btn btn-secondary btn-sm"
             style={{ marginLeft: 'auto' }}
@@ -291,7 +295,9 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
           >
             🔗 Share Circuit
           </button>
+          )}
 
+          {!embedded && (
           <button
             className="btn btn-sm"
             style={{ background: 'linear-gradient(135deg, #7c4dff, #448aff)', color: 'white', border: 'none', cursor: 'pointer' }}
@@ -300,7 +306,18 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
           >
             🧠 Explain Circuit with AI
           </button>
+          )}
         </div>
+
+        {/* Gate budget indicator for embedded contest mode */}
+        {embedded && gateBudget && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'var(--bg-glass)', borderRadius: 6, border: '1px solid var(--border-glass)', fontSize: '0.82rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Gates used:</span>
+            <strong style={{ color: ops.filter(o => o.gate !== 'M').length > gateBudget ? 'var(--danger)' : 'var(--accent)' }}>
+              {ops.filter(o => o.gate !== 'M').length} / {gateBudget}
+            </strong>
+          </div>
+        )}
       </div>
 
       {/* Main Builder Area: Visual Canvas vs Live QASM Code Editor */}
@@ -483,6 +500,7 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
       )}
 
       {/* Save */}
+      {!embedded && (
       <div className="card" style={{ marginTop: 20 }}>
         <h3 style={{ marginBottom: 12 }}>💾 Save Circuit</h3>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -500,20 +518,21 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
           </div>
         )}
       </div>
+      )}
 
-      {shareToast && (
+      {!embedded && shareToast && (
         <div className="tag tag-success" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000, padding: '12px 20px', borderRadius: 8, boxShadow: 'var(--shadow-lg)' }}>
           🔗 Shareable Circuit Link Copied to Clipboard!
         </div>
       )}
 
-      {saveToast && (
+      {!embedded && saveToast && (
         <div className="tag tag-success" style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 1000, padding: '12px 20px', borderRadius: 8, boxShadow: 'var(--shadow-lg)' }}>
           💾 Circuit Saved Successfully!
         </div>
       )}
 
-      {showExplainer && (
+      {!embedded && showExplainer && (
         <CircuitExplainer
           ops={ops}
           nQubits={nQubits}
@@ -521,7 +540,7 @@ export default function CircuitBuilder({ embedded = false, initialQubits = 2, ga
         />
       )}
 
-      <AITutor />
+      {!embedded && <AITutor />}
     </div>
   );
 }

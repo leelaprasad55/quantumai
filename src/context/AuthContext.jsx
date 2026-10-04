@@ -2,153 +2,25 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
 import { storage, createDefaultProgress, createDefaultSkills } from '../utils/storage.js';
 
-const LOCAL_USERS_KEY = 'ql_local_users';
-const LOCAL_SESSION_KEY = 'ql_local_current_user';
-
-export const normalizeLocalUser = (record = {}) => ({
-  id: record.id || `local-${Date.now()}`,
-  email: record.email || '',
-  name: record.name || record.full_name || record.email?.split('@')[0] || 'User',
-  avatar_url: record.avatar_url || null,
-  role: record.role || 'student',
-  total_xp: Number(record.total_xp || 0),
-  current_streak: Number(record.current_streak || 0),
-  isAdmin: record.role === 'admin',
-  isInstructor: record.role === 'instructor',
-  knowledgeTestDone: Boolean(record.knowledge_test_done || record.knowledgeTestDone || false),
-  knowledgeScore: Number(record.knowledge_score || record.knowledgeScore || 0),
-  education: record.education || null,
-  goal: record.goal || null,
-  createdAt: record.created_at || record.createdAt || new Date().toISOString(),
-});
-
-const readLocalUsers = () => {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]');
-  } catch {
-    return [];
-  }
-};
-
-const writeLocalUsers = (users) => {
-  localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
-};
-
-const saveLocalSession = (userRecord) => {
-  if (!userRecord) {
-    localStorage.removeItem(LOCAL_SESSION_KEY);
-    return;
-  }
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(userRecord));
-};
-
-const getStoredLocalUser = () => {
-  try {
-    const raw = localStorage.getItem(LOCAL_SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
-const INSTRUCTOR_DEMO_ACCOUNT = {
-  id: 'local-instructor-quantumlearn', email: 'instructor@gmail.com', password: 'instructor123',
-  name: 'Dr. Quantum Instructor', full_name: 'Dr. Quantum Instructor', role: 'instructor',
-  education: 'Instructor', goal: 'Guide QuantumLearn students', knowledge_test_done: true,
-  knowledge_score: 100, total_xp: 0, current_streak: 0, created_at: '2026-01-01T00:00:00.000Z',
-};
-
-const ensureInstructorDemoAccount = () => {
-  const users = readLocalUsers();
-  if (!users.some(user => user.email?.toLowerCase() === INSTRUCTOR_DEMO_ACCOUNT.email)) {
-    users.push(INSTRUCTOR_DEMO_ACCOUNT);
-    writeLocalUsers(users);
-  }
-};
-
-export const localAuth = {
-  getUserSession() {
-    return getStoredLocalUser();
-  },
-  register({ name, email, password, education, goal }) {
-    const users = readLocalUsers();
-    const normalizedEmail = (email || '').trim().toLowerCase();
-
-    if (!name || !normalizedEmail || !password) {
-      return { error: 'Name, email, and password are required.' };
-    }
-
-    if (users.some(user => (user.email || '').trim().toLowerCase() === normalizedEmail)) {
-      return { error: 'An account with this email already exists.' };
-    }
-
-    const userRecord = {
-      id: `local-${Date.now()}`,
-      email: normalizedEmail,
-      password,
-      name,
-      full_name: name,
-      role: 'student',
-      avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
-      education,
-      goal,
-      total_xp: 0,
-      current_streak: 0,
-      knowledge_test_done: false,
-      knowledge_score: 0,
-      created_at: new Date().toISOString(),
-    };
-
-    users.push(userRecord);
-    writeLocalUsers(users);
-    saveLocalSession(userRecord);
-
-    return { success: true, user: normalizeLocalUser(userRecord) };
-  },
-  login(email, password) {
-    ensureInstructorDemoAccount();
-    const users = readLocalUsers();
-    const normalizedEmail = (email || '').trim().toLowerCase();
-    const match = users.find(user => (user.email || '').trim().toLowerCase() === normalizedEmail && String(user.password) === String(password));
-
-    if (!match) {
-      return { error: 'Invalid email or password.' };
-    }
-
-    saveLocalSession(match);
-    return { success: true, user: normalizeLocalUser(match) };
-  },
-  logout() {
-    saveLocalSession(null);
-    return { success: true };
-  },
-  updateUser(currentUser, updates) {
-    const users = readLocalUsers();
-    const matchIndex = users.findIndex(user => user.id === currentUser.id);
-
-    if (matchIndex === -1) {
-      return currentUser;
-    }
-
-    const updatedRecord = {
-      ...users[matchIndex],
-      full_name: updates.name ?? users[matchIndex].full_name ?? currentUser.name,
-      name: updates.name ?? users[matchIndex].name ?? currentUser.name,
-      avatar_url: updates.avatar_url ?? users[matchIndex].avatar_url ?? currentUser.avatar_url,
-      knowledge_test_done: updates.knowledgeTestDone ?? users[matchIndex].knowledge_test_done ?? currentUser.knowledgeTestDone,
-      knowledge_score: updates.knowledgeScore ?? users[matchIndex].knowledge_score ?? currentUser.knowledgeScore,
-      total_xp: users[matchIndex].total_xp ?? 0,
-      current_streak: users[matchIndex].current_streak ?? 0,
-      education: users[matchIndex].education,
-      goal: users[matchIndex].goal,
-    };
-
-    users[matchIndex] = updatedRecord;
-    writeLocalUsers(users);
-    saveLocalSession(updatedRecord);
-
-    return normalizeLocalUser(updatedRecord);
-  },
+export const normalizeLocalUser = (record = {}) => {
+  const role = record.role || 'student';
+  return {
+    id: record.id || `local-${Date.now()}`,
+    email: record.email || '',
+    name: record.name || record.full_name || record.email?.split('@')[0] || 'User',
+    avatar_url: record.avatar_url || null,
+    role,
+    isAdmin: role === 'admin',
+    isInstructor: role === 'instructor',
+    isStudent: role === 'student',
+    total_xp: Number(record.total_xp || 0),
+    current_streak: Number(record.current_streak || 0),
+    knowledgeTestDone: Boolean(record.knowledge_test_done || record.knowledgeTestDone || false),
+    knowledgeScore: Number(record.knowledge_score || record.knowledgeScore || 0),
+    education: record.education || null,
+    goal: record.goal || null,
+    createdAt: record.created_at || record.createdAt || new Date().toISOString(),
+  };
 };
 
 const AuthContext = createContext({ user: null, loading: true });
@@ -160,24 +32,30 @@ export function AuthProvider({ children }) {
   // Fetch the user's profile from Supabase 'profiles' table
   const fetchProfile = async (authUser) => {
     if (!authUser) return null;
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, avatar_url, role, total_xp, current_streak, knowledge_test_done, knowledge_score, created_at')
       .eq('id', authUser.id)
       .maybeSingle();
 
+    if (error) {
+      console.error('Unable to fetch profile:', error.message);
+    }
+
+    const role = profile?.role || 'student';
     return {
       id: authUser.id,
       email: authUser.email,
       name: profile?.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
       avatar_url: profile?.avatar_url || authUser.user_metadata?.avatar_url || null,
-      role: profile?.role || 'student',
-      total_xp: profile?.total_xp || 0,
-      current_streak: profile?.current_streak || 0,
-      isAdmin: profile?.role === 'admin',
-      isInstructor: profile?.role === 'instructor',
-      knowledgeTestDone: profile?.knowledge_test_done || false,
-      knowledgeScore: profile?.knowledge_score || 0,
+      role,
+      isAdmin: role === 'admin',
+      isInstructor: role === 'instructor',
+      isStudent: role === 'student',
+      total_xp: Number(profile?.total_xp || 0),
+      current_streak: Number(profile?.current_streak || 0),
+      knowledgeTestDone: Boolean(profile?.knowledge_test_done || false),
+      knowledgeScore: Number(profile?.knowledge_score || 0),
       education: authUser.user_metadata?.education || null,
       goal: authUser.user_metadata?.goal || null,
       createdAt: profile?.created_at || authUser.created_at,
@@ -201,11 +79,9 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     const initAuth = async () => {
-      ensureInstructorDemoAccount();
       if (!supabase) {
-        const localUser = getStoredLocalUser();
         if (mounted) {
-          setUser(localUser ? normalizeLocalUser(localUser) : null);
+          setUser(null);
           setLoading(false);
         }
         return;
@@ -257,12 +133,7 @@ export function AuthProvider({ children }) {
   // Email + Password Sign Up
   const register = async ({ name, email, password, education, goal }) => {
     if (!supabase) {
-      const result = localAuth.register({ name, email, password, education, goal });
-      if (result.success) {
-        setUser(result.user);
-        return { success: true, user: result.user, isNewUser: true };
-      }
-      return result;
+      return { error: 'Supabase is not configured. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before creating an account.' };
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -293,21 +164,8 @@ export function AuthProvider({ children }) {
 
   // Email + Password Sign In
   const login = async (email, password) => {
-    // SIH demo instructor account is available even when a remote Supabase project is configured.
-    if ((email || '').trim().toLowerCase() === INSTRUCTOR_DEMO_ACCOUNT.email && password === INSTRUCTOR_DEMO_ACCOUNT.password) {
-      ensureInstructorDemoAccount();
-      saveLocalSession(INSTRUCTOR_DEMO_ACCOUNT);
-      const instructor = normalizeLocalUser(INSTRUCTOR_DEMO_ACCOUNT);
-      setUser(instructor);
-      return { success: true, user: instructor };
-    }
     if (!supabase) {
-      const result = localAuth.login(email, password);
-      if (result.success) {
-        setUser(result.user);
-        return { success: true, user: result.user };
-      }
-      return result;
+      return { error: 'Supabase is not configured. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before signing in.' };
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -345,10 +203,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     if (supabase) {
       await supabase.auth.signOut();
-    } else {
-      localAuth.logout();
     }
-    storage.remove('currentUser');
     setUser(null);
   };
 
@@ -357,8 +212,6 @@ export function AuthProvider({ children }) {
     if (!user) return;
 
     if (!supabase) {
-      const updated = localAuth.updateUser(user, updates);
-      setUser(updated);
       return;
     }
 

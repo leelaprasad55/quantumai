@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import math
-import time
 import uuid
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -21,10 +20,6 @@ def _now() -> datetime:
 
 
 def contest_status(contest: dict[str, Any]) -> str:
-    # The judge-facing sample is explicitly exempt from normal expiry.  All
-    # ordinary contests continue to use their scheduled time window.
-    if contest.get("is_demo"):
-        return "live"
     now = _now()
     start = datetime.fromisoformat(str(contest["start_time"]).replace("Z", "+00:00"))
     end = datetime.fromisoformat(str(contest["end_time"]).replace("Z", "+00:00"))
@@ -85,37 +80,16 @@ class ContestStore:
     def __init__(self):
         self.base = (settings.supabase_url or "").rstrip("/")
         self.key = settings.supabase_service_role_key
-        self.local_submissions: list[dict[str, Any]] = []
-        self.local = not (self.base and self.key)
-        self._demo_seeded = self.local
-        self._demo_seed_lock = asyncio.Lock()
-        now = _now()
-        self.sample_contest = {
-            "id": "00000000-0000-0000-0000-000000000001", "demo_key": "quantumlearn-ai-sample-contest-v1",
-            "title": "QuantumLearn AI — Sample Contest", "description": "Permanent demonstration contest for testing the QuantumLearn AI contest platform.",
-            "start_time": "2024-01-01T00:00:00+00:00", "end_time": "2100-01-01T00:00:00+00:00",
-            "is_rated": False, "is_demo": True, "created_at": now.isoformat(),
-        }
-        self.sample_problem = {
-            "id": "00000000-0000-0000-0000-000000000011", "contest_id": self.sample_contest["id"],
-            "title": "Bell pair", "statement": "Create |00⟩ + |11⟩ using at most two gates.", "contest_type": "circuit_building",
-            "framework": None, "qubit_budget": 2, "gate_budget": 2, "par_gates": 2, "par_depth": 2,
-            "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "CNOT", "control": 0, "target": 1, "col": 1}],
-            "pass_threshold": 0.95, "order_index": 0,
-        }
-        self.sample_problems = [
-            self.sample_problem,
-            {"id": "00000000-0000-0000-0000-000000000012", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-superposition-v1", "title": "Qubit and superposition", "statement": "Put one qubit into an equal superposition using one gate.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 1, "gate_budget": 1, "par_gates": 1, "par_depth": 1, "reference_ops": [{"gate": "H", "target": 0, "col": 0}], "pass_threshold": .95, "order_index": 1},
-            {"id": "00000000-0000-0000-0000-000000000013", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-bit-flip-v1", "title": "Quantum gate fundamentals", "statement": "Transform |0⟩ to |1⟩ with the appropriate single-qubit gate.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 1, "gate_budget": 1, "par_gates": 1, "par_depth": 1, "reference_ops": [{"gate": "X", "target": 0, "col": 0}], "pass_threshold": .95, "order_index": 2},
-            {"id": "00000000-0000-0000-0000-000000000014", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-uniform-v1", "title": "Two-qubit superposition", "statement": "Prepare an equal distribution across all two-qubit basis states.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 2, "gate_budget": 2, "par_gates": 2, "par_depth": 1, "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "H", "target": 1, "col": 0}], "pass_threshold": .95, "order_index": 3},
-            {"id": "00000000-0000-0000-0000-000000000015", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-ghz-v1", "title": "Basic quantum algorithm", "statement": "Prepare a three-qubit GHZ state using a compact circuit.", "contest_type": "circuit_building", "framework": None, "qubit_budget": 3, "gate_budget": 3, "par_gates": 3, "par_depth": 3, "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "CNOT", "control": 0, "target": 1, "col": 1}, {"gate": "CNOT", "control": 1, "target": 2, "col": 2}], "pass_threshold": .95, "order_index": 4},
-            {"id": "00000000-0000-0000-0000-000000000016", "contest_id": self.sample_contest["id"], "demo_key": "quantumlearn-sample-code-bell-v1", "title": "Code a Bell state", "statement": "Using Qiskit, write a two-qubit circuit that prepares the Bell state.", "contest_type": "coding", "framework": "qiskit", "qubit_budget": 2, "gate_budget": 2, "par_gates": 2, "par_depth": 2, "reference_ops": [{"gate": "H", "target": 0, "col": 0}, {"gate": "CNOT", "control": 0, "target": 1, "col": 1}], "pass_threshold": .95, "order_index": 5},
-        ]
 
     def _headers(self):
         return {"apikey": self.key, "Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
 
+    def _require_configuration(self):
+        if not (self.base and self.key):
+            raise RuntimeError("Contest storage is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the backend.")
+
     async def _request(self, method: str, path: str, **kwargs):
+        self._require_configuration()
         headers = {**self._headers(), **kwargs.pop("headers", {})}
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.request(method, f"{self.base}/rest/v1/{path}", headers=headers, **kwargs)
@@ -123,43 +97,15 @@ class ContestStore:
             raise RuntimeError(f"Contest storage request failed: {response.text}")
         return response.json() if response.content else None
 
-    async def ensure_demo_contest(self):
-        """Idempotently restore the permanent sample after a fresh DB restore."""
-        if self._demo_seeded:
-            return
-        async with self._demo_seed_lock:
-            if self._demo_seeded:
-                return
-            contest = {key: value for key, value in self.sample_contest.items() if key != "id" and key != "created_at"}
-            rows = await self._request("POST", "contests?on_conflict=demo_key", json=contest, headers={**self._headers(), "Prefer": "resolution=merge-duplicates,return=representation"})
-            contest_id = (rows or [{}])[0].get("id")
-            if not contest_id:
-                existing = await self._request("GET", "contests?demo_key=eq.quantumlearn-ai-sample-contest-v1&select=id")
-                contest_id = existing[0]["id"]
-            for index, sample in enumerate(self.sample_problems):
-                problem = {key: value for key, value in sample.items() if key not in {"id", "contest_id"}}
-                problem["demo_key"] = problem.get("demo_key") or "quantumlearn-sample-bell-v1"
-                problem["contest_id"] = contest_id
-                problem["order_index"] = index
-                await self._request("POST", "contest_problems?on_conflict=demo_key", json=problem, headers={**self._headers(), "Prefer": "resolution=ignore-duplicates"})
-            self._demo_seeded = True
-
     async def contests(self):
-        if self.local: return [self.sample_contest]
-        await self.ensure_demo_contest()
         return await self._request("GET", "contests?select=*&order=start_time.desc")
 
     async def contest(self, contest_id: str):
-        if self.local:
-            return self.sample_contest if contest_id == self.sample_contest["id"] else None
-        await self.ensure_demo_contest()
         rows = await self._request("GET", f"contests?id=eq.{contest_id}&select=*")
         return rows[0] if rows else None
 
     async def problems(self, contest_id: str, private: bool = False):
         fields = "*" if private else "id,contest_id,title,statement,contest_type,framework,qubit_budget,gate_budget,par_gates,par_depth,pass_threshold,order_index"
-        if self.local:
-            return [problem if private else {key: value for key, value in problem.items() if key != "reference_ops"} for problem in self.sample_problems] if contest_id == self.sample_contest["id"] else []
         return await self._request("GET", f"contest_problems?contest_id=eq.{contest_id}&select={fields}&order=order_index")
 
     async def problem(self, contest_id: str, problem_id: str, private: bool = False):
@@ -167,30 +113,15 @@ class ContestStore:
         return next((problem for problem in rows if problem["id"] == problem_id), None)
 
     async def add_submission(self, submission: dict[str, Any]):
-        if self.local:
-            if submission["is_best_for_user"]:
-                for item in self.local_submissions:
-                    if item["problem_id"] == submission["problem_id"] and item["user_id"] == submission["user_id"]:
-                        item["is_best_for_user"] = False
-            self.local_submissions.append(submission)
-            return submission
         if submission["is_best_for_user"]:
             await self._request("PATCH", f"contest_submissions?problem_id=eq.{submission['problem_id']}&user_id=eq.{submission['user_id']}", json={"is_best_for_user": False})
         rows = await self._request("POST", "contest_submissions", json=submission, headers={**self._headers(), "Prefer": "return=representation"})
         return rows[0]
 
     async def submissions(self, problem_id: str, user_id: str):
-        if self.local:
-            return [item for item in self.local_submissions if item["problem_id"] == problem_id and item["user_id"] == user_id]
         return await self._request("GET", f"contest_submissions?problem_id=eq.{problem_id}&user_id=eq.{user_id}&select=*&order=total_score.desc")
 
     async def update_submission(self, submission_id: str, values: dict[str, Any]):
-        if self.local:
-            for item in self.local_submissions:
-                if item["id"] == submission_id:
-                    item.update(values)
-                    return item
-            return None
         rows = await self._request(
             "PATCH", f"contest_submissions?id=eq.{submission_id}", json=values,
             headers={**self._headers(), "Prefer": "return=representation"},
@@ -200,7 +131,7 @@ class ContestStore:
     async def leaderboard(self, contest_id: str):
         problems = await self.problems(contest_id, private=True)
         ids = {item["id"] for item in problems}
-        rows = self.local_submissions if self.local else await self._request("GET", "contest_submissions?select=*")
+        rows = await self._request("GET", "contest_submissions?select=*")
         totals: dict[str, dict[str, Any]] = {}
         for row in rows:
             if row["problem_id"] not in ids or not row.get("is_best_for_user"): continue
@@ -210,16 +141,12 @@ class ContestStore:
         return sorted(totals.values(), key=lambda item: (-item["total_score_sum"], -item["problems_solved"]))
 
     async def rating(self, user_id: str):
-        if self.local:
-            return {"user_id": user_id, "current_rating": 1200, "rating_history": [], "contests_participated": 0}
         rows = await self._request("GET", f"user_ratings?user_id=eq.{user_id}&select=*")
         return rows[0] if rows else {"user_id": user_id, "current_rating": 1200, "rating_history": [], "contests_participated": 0}
 
     async def is_admin(self, user_id: str | None) -> bool:
         if not user_id:
             return False
-        if self.local:
-            return settings.app_env == "development"
         rows = await self._request("GET", f"profiles?id=eq.{user_id}&select=role")
         return bool(rows and rows[0].get("role") == "admin")
 
@@ -240,13 +167,9 @@ class ContestStore:
             history = list(rating.get("rating_history") or [])
             history.append({"contest_id": contest["id"], "rating": int(rating["current_rating"]) + delta, "delta": delta, "at": _now().isoformat()})
             values = {"user_id": row["user_id"], "current_rating": int(rating["current_rating"]) + delta, "rating_history": history, "contests_participated": int(rating.get("contests_participated") or 0) + 1, "updated_at": _now().isoformat()}
-            if not self.local:
-                await self._request("POST", "user_ratings", json=values, headers={**self._headers(), "Prefer": "resolution=merge-duplicates"})
+            await self._request("POST", "user_ratings", json=values, headers={**self._headers(), "Prefer": "resolution=merge-duplicates"})
             changes.append({"user_id": row["user_id"], "delta": delta, "rating": values["current_rating"]})
-        if not self.local:
-            await self._request("PATCH", f"contests?id=eq.{contest['id']}", json={"finalized_at": _now().isoformat()})
-        else:
-            contest["finalized_at"] = _now().isoformat()
+        await self._request("PATCH", f"contests?id=eq.{contest['id']}", json={"finalized_at": _now().isoformat()})
         return {"participants": len(board), "changes": changes}
 
 

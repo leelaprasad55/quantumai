@@ -115,7 +115,7 @@ export default function Sidebar() {
       <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-glass)' }}>
         {user?.isInstructor ? <>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Instructor workspace</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>SIH 2026 Demo</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>QuantumLearn AI</div>
         </> : <>
         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Knowledge Score</div>
         <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent)', marginBottom: 8 }}>
