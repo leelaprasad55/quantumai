@@ -42,7 +42,6 @@ The deployable application is one service: FastAPI serves the compiled React app
 ## 🚀 Live Demo
 
 🔗 **Deployment:** https://quantumai-gkl0.onrender.com
-
 ---
 
 ## ✨ Key Features
