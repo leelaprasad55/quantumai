@@ -100,25 +100,6 @@ class AdminRoleRequest(BaseModel):
     role: Literal["student", "instructor", "admin"]
 
 
-class AdminContestRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
-    description: str | None = Field(default=None, max_length=5000)
-    start_time: datetime
-    end_time: datetime
-    is_rated: bool = True
-    problems: list[AdminContestProblemRequest] = Field(min_length=1, max_length=10)
-
-    @field_validator("end_time")
-    @classmethod
-    def validate_timeline(cls, value: datetime, info):
-        start_time = info.data.get("start_time")
-        if not start_time:
-            return value
-        if value <= start_time:
-            raise ValueError("Contest end_time must be later than start_time.")
-        return value
-
-
 class AdminContestProblemRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     statement: str = Field(min_length=1, max_length=5000)
@@ -148,6 +129,25 @@ class AdminContestProblemRequest(BaseModel):
                     raise ValueError("Controlled gates need a different in-range control qubit.")
             if gate in {"Rx", "Ry", "Rz"} and not isinstance(operation.get("angle", 1.5707963267948966), (int, float)):
                 raise ValueError("Rotation gates need a numeric angle.")
+        return value
+
+
+class AdminContestRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    start_time: datetime
+    end_time: datetime
+    is_rated: bool = True
+    problems: list[AdminContestProblemRequest] = Field(min_length=1, max_length=10)
+
+    @field_validator("end_time")
+    @classmethod
+    def validate_timeline(cls, value: datetime, info):
+        start_time = info.data.get("start_time")
+        if not start_time:
+            return value
+        if value <= start_time:
+            raise ValueError("Contest end_time must be later than start_time.")
         return value
 
 
