@@ -2,7 +2,13 @@ import { supabase } from '../lib/supabaseClient.js';
 
 // Production uses the same FastAPI origin that serves the React bundle. During
 // Vite development, /api is forwarded to the local FastAPI server by vite.config.js.
-const API_URL = ((import.meta.env || {}).VITE_QUANTUM_API_URL || '').replace(/\/$/, '');
+const runtimeConfig = globalThis.__QUANTUMLEARN_CONFIG__ || {};
+
+const API_URL = (
+  ((import.meta.env || {}).VITE_QUANTUM_API_URL || '') ||
+  runtimeConfig.VITE_QUANTUM_API_URL ||
+  ''
+).replace(/\/$/, '');
 
 async function request(path, options = {}) {
   const { data: { session } = {} } = supabase ? await supabase.auth.getSession() : { data: {} };
