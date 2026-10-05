@@ -1,5 +1,6 @@
 import pytest
 
+from app.config import settings
 from app.services.cirq_service import run_cirq
 from app.services.pennylane_service import run_pennylane
 from app.services.qiskit_service import run_qiskit
@@ -28,3 +29,14 @@ def test_generated_framework_code_executes(runner, source, states):
     assert set(result["measurements"]).issubset(states)
     assert sum(result["measurements"].values()) == 128
     assert sum(result["probabilities"].values()) == pytest.approx(1)
+
+
+@pytest.mark.parametrize(("runner", "source"), [
+    (run_qiskit, "from qiskit import QuantumCircuit\nqc = QuantumCircuit(2)\nqc.measure_all()"),
+    (run_pennylane, "import pennylane as qml\n@qml.qnode(None)\ndef circuit():\n    qml.CNOT(wires=[0, 1])\n    return qml.counts()"),
+    (run_cirq, "import cirq\nqubits = [cirq.LineQubit(i) for i in range(2)]\ncircuit = cirq.Circuit()\ncircuit.append(cirq.CNOT(qubits[0], qubits[1]))"),
+])
+def test_frameworks_enforce_configured_qubit_limit(monkeypatch, runner, source):
+    monkeypatch.setattr(settings, "max_qubits", 1)
+    with pytest.raises(ValueError, match="qubit|wire"):
+        runner(source, 8)

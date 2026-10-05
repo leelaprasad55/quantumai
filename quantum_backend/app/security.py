@@ -4,10 +4,15 @@ import httpx
 from app.config import settings
 
 async def require_configured_auth(authorization: str | None = Header(default=None)):
-    # Local development remains usable without Supabase. Once configured, every
-    # protected router verifies the actual bearer token with Supabase Auth.
-    if not settings.supabase_url or not settings.supabase_anon_key:
-        return None
+    # Only explicit development/test environments may use the local auth bypass.
+    has_url = bool(settings.supabase_url)
+    has_anon_key = bool(settings.supabase_anon_key)
+    if not has_url and not has_anon_key:
+        if settings.app_env.casefold() in {"development", "test"}:
+            return None
+        raise HTTPException(status_code=503, detail="Authentication is not configured.")
+    if not has_url or not has_anon_key:
+        raise HTTPException(status_code=503, detail="Authentication configuration is incomplete.")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required.")
     async with httpx.AsyncClient(timeout=5) as client:

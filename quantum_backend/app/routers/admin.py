@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas import AdminContentRequest, AdminRoleRequest, AdminSettingRequest
+from app.schemas import AdminContentRequest, AdminContestRequest, AdminRoleRequest, AdminSettingRequest
 from app.security import require_admin
 from app.services.admin_service import CONTENT_TABLES, store
 
@@ -29,6 +29,11 @@ async def update_settings(request: AdminSettingRequest, user=Depends(require_adm
     return {"success": True, "settings": await store.update_platform_settings(request.model_dump(), user["id"])}
 
 
+@router.get("/contests")
+async def contests(user=Depends(require_admin)):
+    return {"success": True, "contests": await store.contests()}
+
+
 @router.get("/users")
 async def users(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), search: str | None = Query(None, max_length=100), user=Depends(require_admin)):
     page, page_size = page_args(page, page_size)
@@ -44,6 +49,12 @@ async def set_user_role(user_id: UUID, request: AdminRoleRequest, user=Depends(r
     if not updated:
         raise HTTPException(404, "User not found.")
     return {"success": True, "user": updated}
+
+
+@router.post("/contests")
+async def create_contest(request: AdminContestRequest, user=Depends(require_admin)):
+    contest = await store.create_contest(request.model_dump(mode="json"), user["id"])
+    return {"success": True, "contest": contest}
 
 
 @router.get("/audit-logs")

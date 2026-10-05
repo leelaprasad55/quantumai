@@ -1,4 +1,5 @@
 from pathlib import Path
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,11 +16,13 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
-    max_shots: int = 4096
-    max_qubits: int = 20
-    max_code_length: int = 12000
+    max_shots: int = Field(default=4096, ge=1, le=4096)
+    max_qubits: int = Field(default=20, ge=1, le=20)
+    max_code_length: int = Field(default=12000, ge=1, le=12000)
     execution_timeout: int = 10
-    rate_limit_per_minute: int = 30
+    rate_limit_per_minute: int = Field(default=30, ge=1, le=10000)
+    result_cache_ttl_seconds: int = Field(default=900, ge=1, le=86400)
+    max_cached_results: int = Field(default=1000, ge=1, le=100000)
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[1] / ".env",

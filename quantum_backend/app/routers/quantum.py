@@ -1,27 +1,49 @@
 import time
 import uuid
-from fastapi import APIRouter, HTTPException, Depends
-from app.schemas import CircuitRequest, AlgorithmRequest
-from app.services.qiskit_service import run_qiskit
-from app.services.pennylane_service import run_pennylane
-from app.services.cirq_service import run_cirq
-from app.services.algorithms import run_bell, run_deutsch_jozsa, run_bernstein_vazirani, run_grover, run_qft, run_phase_estimation, run_shor
+from collections.abc import Callable
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.config import settings
+from app.schemas import AlgorithmRequest, CircuitRequest
 from app.security import require_configured_auth
+from app.services.algorithms import run_bell, run_bernstein_vazirani, run_deutsch_jozsa, run_grover, run_phase_estimation, run_qft, run_shor
+from app.services.cirq_service import run_cirq
+from app.services.pennylane_service import run_pennylane
+from app.services.qiskit_service import run_qiskit
 
 router = APIRouter(prefix="/api/quantum", tags=["Quantum"], dependencies=[Depends(require_configured_auth)])
-_results: dict[str, dict] = {}
+_results: dict[str, dict[str, Any]] = {}
 
 
-def _run(request: CircuitRequest):
-    runner = {"qiskit": run_qiskit, "pennylane": run_pennylane, "cirq": run_cirq}[request.framework]
+def _prune_results(now: float | None = None) -> None:
+    current_time = time.time() if now is None else now
+    expiry = current_time - settings.result_cache_ttl_seconds
+    for result_id, result in list(_results.items()):
+        if result.get("completed_at", 0) < expiry:
+            _results.pop(result_id, None)
+    overflow = len(_results) - settings.max_cached_results
+    if overflow > 0:
+        oldest = sorted(_results, key=lambda result_id: _results[result_id].get("completed_at", 0))
+        for result_id in oldest[:overflow]:
+            _results.pop(result_id, None)
+
+
+def _run(request: CircuitRequest) -> dict[str, Any]:
+    runners: dict[str, Callable[[str, int], Any]] = {"qiskit": run_qiskit, "pennylane": run_pennylane, "cirq": run_cirq}
+    runner = runners[request.framework]
     try:
         data = runner(request.code, request.shots)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except Exception as error:
         raise HTTPException(status_code=500, detail="Quantum execution failed safely: " + str(error)) from error
+    completed_at = time.time()
+    _prune_results(completed_at)
     data["result_id"] = str(uuid.uuid4())
-    _results[data["result_id"]] = {**data, "completed_at": time.time()}
+    _results[data["result_id"]] = {**data, "completed_at": completed_at}
+    _prune_results(completed_at)
     return data
 
 
@@ -38,16 +60,17 @@ def simulate(request: CircuitRequest): return _run(request)
 
 
 @router.get("/result")
-def result(result_id: str):
+def result(result_id: str) -> dict[str, Any]:
+    _prune_results()
     saved = _results.get(result_id)
     if not saved: raise HTTPException(status_code=404, detail="Execution result not found or expired.")
     return saved
 
 
 @router.post("/algorithm")
-def algorithm(request: AlgorithmRequest):
+def algorithm(request: AlgorithmRequest) -> dict[str, Any]:
     if request.framework != "qiskit": raise HTTPException(status_code=400, detail="Algorithms are currently implemented with Qiskit Aer only.")
-    runners = {"bell": run_bell, "deutsch_jozsa": run_deutsch_jozsa, "bernstein_vazirani": run_bernstein_vazirani, "grover": run_grover, "qft": run_qft, "phase_estimation": run_phase_estimation, "shor": run_shor}
+    runners: dict[str, Callable[[int], Any]] = {"bell": run_bell, "deutsch_jozsa": run_deutsch_jozsa, "bernstein_vazirani": run_bernstein_vazirani, "grover": run_grover, "qft": run_qft, "phase_estimation": run_phase_estimation, "shor": run_shor}
     if request.algorithm not in runners: raise HTTPException(status_code=501, detail=f"{request.algorithm} is not implemented yet.")
     try:
         data = runners[request.algorithm](request.shots)

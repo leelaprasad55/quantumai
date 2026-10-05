@@ -2,8 +2,9 @@
 import ast
 import math
 import time
-from collections import Counter
 import pennylane as qml
+
+from app.config import settings
 
 
 def _constant(node):
@@ -45,7 +46,7 @@ def run_pennylane(code: str, shots: int = 1024):
         else: target = _wire(wire_node)
         op_args = [_constant(arg) for arg in call.args]
         operations.append((names[name], op_args, target)); wires.update(target if isinstance(target, list) else [target])
-    if not wires or max(wires) >= 20: raise ValueError("Circuit must use between 1 and 20 literal wires.")
+    if not wires or min(wires) < 0 or max(wires) >= min(20, settings.max_qubits): raise ValueError(f"Circuit must use between 1 and {min(20, settings.max_qubits)} literal wires.")
     wire_count = max(wires) + 1
     device = qml.device("default.qubit", wires=wire_count, shots=shots)
 
@@ -57,5 +58,5 @@ def run_pennylane(code: str, shots: int = 1024):
     raw = circuit()
     if return_kind == "counts": counts = {str(key): int(value) for key, value in raw.items()}
     else:
-        counts = {format(index, f"0{wire_count}b"): int(round(float(prob) * shots)) for index, prob in enumerate(raw) if prob > 0}
+        counts = {format(index, f"0{wire_count}b"): round(float(prob) * shots) for index, prob in enumerate(raw) if prob > 0}
     return {"success": True, "framework": "pennylane", "output": "PennyLane default.qubit execution completed.", "circuit": "\n".join(f"{gate.__name__}({target})" for gate, _, target in operations), "measurements": counts, "counts": counts, "probabilities": {state: count / shots for state, count in counts.items()}, "shots": shots, "execution_time": round(time.perf_counter() - started, 6), "error": None}

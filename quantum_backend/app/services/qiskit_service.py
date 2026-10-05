@@ -4,6 +4,7 @@ import math
 import time
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
+from app.config import settings
 
 MAX_QUBITS = 20
 
@@ -44,7 +45,8 @@ def compile_qiskit(code: str) -> QuantumCircuit:
             call = statement.value
             if not (isinstance(call.func, ast.Name) and call.func.id == "QuantumCircuit" and call.args): raise ValueError("Create the circuit with qc = QuantumCircuit(qubits[, clbits]).")
             qubits, clbits = _integer(call.args[0]), _integer(call.args[1]) if len(call.args) > 1 else 0
-            if qubits < 1 or qubits > MAX_QUBITS or clbits < 0 or clbits > qubits: raise ValueError(f"Circuit must use 1–{MAX_QUBITS} qubits and no more classical bits than qubits.")
+            max_qubits = min(MAX_QUBITS, settings.max_qubits)
+            if qubits < 1 or qubits > max_qubits or clbits < 0 or clbits > qubits: raise ValueError(f"Circuit must use 1–{max_qubits} qubits and no more classical bits than qubits.")
             circuit = QuantumCircuit(qubits, clbits); continue
         if not (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)): raise ValueError("Only circuit construction and gate calls are allowed.")
         call = statement.value

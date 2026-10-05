@@ -18,4 +18,4 @@ services:
       - key: QBRAID_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: https://quantumai-gkl0.onrender.com
+        value: https://quantumai1.onrender.com,http://localhost:5173

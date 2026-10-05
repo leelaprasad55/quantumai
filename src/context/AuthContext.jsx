@@ -62,6 +62,25 @@ export function AuthProvider({ children }) {
     };
   };
 
+  const refreshUser = async () => {
+    if (!supabase) return null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUser(null);
+        return null;
+      }
+
+      const fullUser = await fetchProfile(session.user);
+      setUser(fullUser);
+      await ensureLocalDefaults(fullUser.id);
+      return fullUser;
+    } catch (err) {
+      console.error('Unable to refresh user profile:', err);
+      return null;
+    }
+  };
+
   // Ensure initial defaults exist in database
   const ensureLocalDefaults = async (userId) => {
     const progress = await storage.getProgress(userId);
@@ -240,7 +259,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout, updateUser, signInWithGoogle }}>
+    <AuthContext.Provider value={{ user, loading, register, login, logout, updateUser, refreshUser, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );
@@ -248,6 +267,6 @@ export function AuthProvider({ children }) {
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) return { user: null, loading: true, register: async () => ({}), login: async () => ({}), logout: async () => { }, updateUser: async () => { }, signInWithGoogle: async () => ({}) };
+  if (!ctx) return { user: null, loading: true, register: async () => ({}), login: async () => ({}), logout: async () => { }, updateUser: async () => { }, refreshUser: async () => null, signInWithGoogle: async () => ({}) };
   return ctx;
 };

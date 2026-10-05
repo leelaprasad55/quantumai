@@ -4,6 +4,8 @@ import math
 import time
 import cirq
 
+from app.config import settings
+
 
 def _index(node):
     if isinstance(node, ast.Constant) and isinstance(node.value, int): return node.value
@@ -50,9 +52,13 @@ def run_cirq(code: str, shots: int = 1024):
         allowed = {"H": cirq.H, "X": cirq.X, "Y": cirq.Y, "Z": cirq.Z, "S": cirq.S, "T": cirq.T, "CNOT": cirq.CNOT, "CZ": cirq.CZ, "SWAP": cirq.SWAP}
         if name not in allowed: raise ValueError(f"Unsupported Cirq operation: {name}")
         operations.append((allowed[name], [_index(arg) for arg in gate_call.args]))
-    if not isinstance(qubit_count, int) or not 1 <= qubit_count <= 20: raise ValueError("Cirq source must define 1–20 qubits.")
+    max_qubits = min(20, settings.max_qubits)
+    if not isinstance(qubit_count, int) or not 1 <= qubit_count <= max_qubits: raise ValueError(f"Cirq source must define 1–{max_qubits} qubits.")
     qubits, circuit = cirq.LineQubit.range(qubit_count), cirq.Circuit()
-    for gate, targets in operations: circuit.append(gate(*[qubits[target] for target in targets]))
+    for gate, targets in operations:
+        if any(target < 0 or target >= qubit_count for target in targets):
+            raise ValueError("Cirq gate target is outside the configured qubit range.")
+        circuit.append(gate(*[qubits[target] for target in targets]))
     circuit.append(cirq.measure(*qubits, key="result"))
     histogram = cirq.Simulator().run(circuit, repetitions=shots).histogram(key="result")
     counts = {format(state, f"0{qubit_count}b"): int(count) for state, count in histogram.items()}

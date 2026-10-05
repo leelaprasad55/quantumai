@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 import pytest
-from app.main import app
+from app.main import app, _request_times
 from app.config import settings
-from app.routers import ibm, jobs
+from app.routers import ibm, jobs, quantum as quantum_router
 
 
 client = TestClient(app)
@@ -40,6 +40,78 @@ def test_sandbox_rejects_file_access(monkeypatch):
         "framework": "qiskit", "shots": 64, "code": "open('secret.txt')",
     })
     assert response.status_code == 422
+
+
+def test_production_protected_routes_fail_closed_without_supabase(monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "supabase_url", None)
+    monkeypatch.setattr(settings, "supabase_anon_key", None)
+    response = client.post("/api/quantum/execute", json={
+        "framework": "qiskit",
+        "shots": 8,
+        "code": "from qiskit import QuantumCircuit\nqc = QuantumCircuit(1)\nqc.measure_all()",
+    })
+    assert response.status_code == 503
+
+
+def test_runtime_shot_and_source_length_limits_are_enforced(monkeypatch):
+    monkeypatch.setattr(settings, "supabase_url", None)
+    monkeypatch.setattr(settings, "supabase_anon_key", None)
+    monkeypatch.setattr(settings, "max_shots", 32)
+    monkeypatch.setattr(settings, "max_code_length", 64)
+    too_many_shots = client.post("/api/quantum/execute", json={
+        "framework": "qiskit", "shots": 33,
+        "code": "from qiskit import QuantumCircuit\nqc = QuantumCircuit(1)",
+    })
+    oversized_code = client.post("/api/quantum/execute", json={
+        "framework": "qiskit", "shots": 8, "code": "x" * 65,
+    })
+    assert too_many_shots.status_code == 422
+    assert oversized_code.status_code == 422
+
+
+def test_runtime_qubit_limit_is_enforced(monkeypatch):
+    monkeypatch.setattr(settings, "supabase_url", None)
+    monkeypatch.setattr(settings, "supabase_anon_key", None)
+    monkeypatch.setattr(settings, "max_qubits", 1)
+    response = client.post("/api/quantum/execute", json={
+        "framework": "qiskit", "shots": 8,
+        "code": "from qiskit import QuantumCircuit\nqc = QuantumCircuit(2)\nqc.measure_all()",
+    })
+    assert response.status_code == 400
+
+
+def test_post_rate_limit_returns_429(monkeypatch):
+    monkeypatch.setattr(settings, "supabase_url", None)
+    monkeypatch.setattr(settings, "supabase_anon_key", None)
+    monkeypatch.setattr(settings, "rate_limit_per_minute", 2)
+    _request_times.clear()
+    request = {"algorithm": "bell", "shots": 0}
+    try:
+        assert client.post("/api/quantum/algorithm", json=request).status_code == 422
+        assert client.post("/api/quantum/algorithm", json=request).status_code == 422
+        assert client.post("/api/quantum/algorithm", json=request).status_code == 429
+    finally:
+        _request_times.clear()
+
+
+def test_quantum_result_cache_expires_and_caps_entries(monkeypatch):
+    monkeypatch.setattr(settings, "result_cache_ttl_seconds", 10, raising=False)
+    monkeypatch.setattr(settings, "max_cached_results", 2, raising=False)
+    quantum_router._results.clear()
+    quantum_router._results.update({
+        "expired": {"completed_at": 989},
+        "oldest": {"completed_at": 991},
+        "newest": {"completed_at": 992},
+    })
+    try:
+        quantum_router._prune_results(1000)
+        assert set(quantum_router._results) == {"oldest", "newest"}
+        quantum_router._results["latest"] = {"completed_at": 1000}
+        quantum_router._prune_results(1000)
+        assert set(quantum_router._results) == {"newest", "latest"}
+    finally:
+        quantum_router._results.clear()
 
 
 @pytest.mark.parametrize(("framework", "code"), [

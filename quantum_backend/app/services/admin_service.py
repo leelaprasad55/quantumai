@@ -124,6 +124,31 @@ class AdminStore:
             query += f"&full_name=ilike.*{search}*"
         return await self.request("GET", query)
 
+    async def create_contest(self, payload: dict[str, Any], admin_id: str):
+        result = await self.request(
+            "POST",
+            "rpc/admin_create_contest_with_problem",
+            json={"payload": payload},
+        )
+        contest = result.get("contest") if isinstance(result, dict) else None
+        problems = result.get("problems") if isinstance(result, dict) else None
+        if not contest or not isinstance(problems, list) or not problems:
+            raise RuntimeError("Contest storage returned an incomplete contest.")
+        await self.audit(
+            admin_id,
+            "create",
+            "contest",
+            contest["id"],
+            {"title": contest["title"], "problem_count": len(problems)},
+        )
+        return {**contest, "problems": problems}
+
+    async def contests(self):
+        return await self.request(
+            "GET",
+            "contests?select=id,title,description,start_time,end_time,is_rated,created_at&order=start_time.desc",
+        )
+
     async def set_role(self, user_id: str, role: str, admin_id: str):
         if user_id == admin_id and role != "admin":
             raise ValueError("You cannot remove your own administrator role.")
