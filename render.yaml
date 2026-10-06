@@ -17,5 +17,7 @@ services:
         sync: false
       - key: QBRAID_API_KEY
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
       - key: CORS_ORIGINS
-        value: https://quantumai1.onrender.com,http://localhost:5173
+        value: https://quantumai1.onrender.com,https://quantumai-gkl0.onrender.com,http://localhost:5173
