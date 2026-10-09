@@ -163,7 +163,14 @@ function Records({ section, rows, loading, edit, archive, audit, refresh }) {
   const getBadgeMeta = row => {
     const meta = row.metadata || {};
     if (section === 'modules') return meta.category ? `${meta.category} · ${meta.difficulty || 'Beginner'}` : meta.difficulty;
-    if (section === 'topics') return meta.difficulty ? `${meta.difficulty}${meta.estimated_minutes ? ` · ${meta.estimated_minutes}m` : ''}` : meta.module_name;
+    if (section === 'topics') {
+      const parts = [];
+      if (meta.module_name) parts.push(meta.module_name);
+      if (meta.video_url) parts.push('🎬 Video');
+      if (meta.doc_url) parts.push('📄 Docs');
+      if (meta.questions?.length) parts.push(`❓ ${meta.questions.length} Qs`);
+      return parts.length ? parts.join(' · ') : meta.difficulty || 'Beginner';
+    }
     if (section === 'resources') return meta.resource_type || meta.author;
     if (section === 'questions') return meta.difficulty ? `${meta.difficulty}${meta.xp_reward ? ` · ${meta.xp_reward} XP` : ''}` : null;
     if (section === 'circuit-challenges') return `${meta.qubit_budget || 2}q · ${meta.difficulty || 'Medium'}`;
@@ -301,15 +308,109 @@ function Editor({ value, title, section, close, save }) {
                   <input className="form-input" placeholder="e.g. Superposition, Bloch Sphere, H gate" value={meta.key_concepts || ''} onChange={e => setM('key_concepts', e.target.value)} />
                 </label>
               </div>
+
+              <div className="grid grid-2" style={{ marginTop: 10 }}>
+                <label>
+                  Video Lecture URL (YouTube / Video Link)
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <input className="form-input" type="url" placeholder="https://youtu.be/... or https://youtube.com/watch?v=..." value={meta.video_url || ''} onChange={e => setM('video_url', e.target.value)} />
+                    {meta.video_url && <a href={meta.video_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ alignSelf: 'center', whiteSpace: 'nowrap' }}>Open ↗</a>}
+                  </div>
+                </label>
+                <label>
+                  Documentation & Reading Resource URL
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <input className="form-input" type="url" placeholder="https://learning.quantum.ibm.com/..." value={meta.doc_url || ''} onChange={e => setM('doc_url', e.target.value)} />
+                    {meta.doc_url && <a href={meta.doc_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ alignSelf: 'center', whiteSpace: 'nowrap' }}>Open ↗</a>}
+                  </div>
+                </label>
+              </div>
+
               <div className="grid grid-2" style={{ marginTop: 10 }}>
                 <label>
                   Formula (LaTeX / Math expression)
-                  <input className="form-input" placeholder="e.g. |\psi\rangle = \alpha|0\rangle + \beta|1\rangle" value={meta.formula || ''} onChange={e => setM('formula', e.target.value)} />
+                  <textarea className="form-input" rows="2" placeholder="e.g. |\psi\rangle = \alpha|0\rangle + \beta|1\rangle" value={meta.formula || ''} onChange={e => setM('formula', e.target.value)} />
                 </label>
                 <label>
                   Interactive Lab / Circuit Suggestion
-                  <input className="form-input" placeholder="e.g. Build an H gate circuit" value={meta.lab_prompt || ''} onChange={e => setM('lab_prompt', e.target.value)} />
+                  <textarea className="form-input" rows="2" placeholder="e.g. Build an H gate circuit on qubit 0" value={meta.lab_prompt || ''} onChange={e => setM('lab_prompt', e.target.value)} />
                 </label>
+              </div>
+
+              <div style={{ marginTop: 16, background: 'rgba(0,0,0,0.02)', border: '1px solid var(--border-glass)', borderRadius: 8, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div>
+                    <h5 style={{ margin: 0, fontSize: '0.95rem' }}>Topic Quiz Questions ({(meta.questions || []).length})</h5>
+                    <small style={{ color: 'var(--text-muted)' }}>Customize questions tested when students complete this topic</small>
+                  </div>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+                    const currentQuestions = Array.isArray(meta.questions) ? [...meta.questions] : [];
+                    currentQuestions.push({
+                      id: `tq-custom-${Date.now()}`,
+                      q: '',
+                      options: ['', '', '', ''],
+                      answer: 0,
+                    });
+                    setM('questions', currentQuestions);
+                  }}>
+                    + Add Question
+                  </button>
+                </div>
+
+                {(!meta.questions || meta.questions.length === 0) ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: '8px 0' }}>No quiz questions attached yet. Click &quot;+ Add Question&quot; to create one.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+                    {meta.questions.map((q, qIndex) => (
+                      <div key={q.id || qIndex} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-glass)', borderRadius: 6, padding: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent)' }}>Question {qIndex + 1}</span>
+                          <button type="button" className="text-action danger" style={{ fontSize: '0.78rem' }} onClick={() => {
+                            const updated = meta.questions.filter((_, idx) => idx !== qIndex);
+                            setM('questions', updated);
+                          }}>
+                            Delete
+                          </button>
+                        </div>
+                        <label style={{ display: 'block', marginBottom: 8 }}>
+                          Question Text
+                          <input className="form-input" required placeholder="Enter question prompt" value={q.q || ''} onChange={e => {
+                            const updated = [...meta.questions];
+                            updated[qIndex] = { ...updated[qIndex], q: e.target.value };
+                            setM('questions', updated);
+                          }} />
+                        </label>
+                        <div className="grid grid-2" style={{ gap: 8 }}>
+                          {[0, 1, 2, 3].map(optIdx => (
+                            <label key={optIdx} style={{ fontSize: '0.78rem' }}>
+                              Option {String.fromCharCode(65 + optIdx)}
+                              <input className="form-input" placeholder={`Option ${String.fromCharCode(65 + optIdx)}`} value={(q.options && q.options[optIdx]) || ''} onChange={e => {
+                                const updated = [...meta.questions];
+                                const newOpts = Array.isArray(updated[qIndex].options) ? [...updated[qIndex].options] : ['', '', '', ''];
+                                newOpts[optIdx] = e.target.value;
+                                updated[qIndex] = { ...updated[qIndex], options: newOpts };
+                                setM('questions', updated);
+                              }} />
+                            </label>
+                          ))}
+                        </div>
+                        <label style={{ display: 'block', marginTop: 8, maxWidth: 220, fontSize: '0.78rem' }}>
+                          Correct Answer
+                          <select className="form-input" value={q.answer ?? 0} onChange={e => {
+                            const updated = [...meta.questions];
+                            updated[qIndex] = { ...updated[qIndex], answer: Number(e.target.value) };
+                            setM('questions', updated);
+                          }}>
+                            <option value={0}>Option A</option>
+                            <option value={1}>Option B</option>
+                            <option value={2}>Option C</option>
+                            <option value={3}>Option D</option>
+                          </select>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

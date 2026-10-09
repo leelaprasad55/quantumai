@@ -4,6 +4,8 @@ import { MODULES, ACHIEVEMENTS } from './modules.js';
 import { ALL_TOPICS } from './allTopics.js';
 import { KNOWLEDGE_TEST_QUESTIONS } from './questions.js';
 import { TOPIC_CIRCUITS } from './topicCircuits.js';
+import { TOPIC_QUESTIONS } from './topicQuestions.js';
+import { TOPIC_FORMULAS } from './topicFormulas.js';
 
 export function getDefaultAdminContent(section, query = '') {
   const q = (query || '').toLowerCase().trim();
@@ -29,7 +31,16 @@ export function getDefaultAdminContent(section, query = '') {
     const list = [];
     Object.entries(ALL_TOPICS).forEach(([modId, topicList]) => {
       if (Array.isArray(topicList)) {
-        topicList.forEach((t, idx) => {
+        topicList.forEach((t) => {
+          const formulas = TOPIC_FORMULAS[t.id] || [];
+          const formulaStr = Array.isArray(formulas) ? formulas.join('\n') : String(formulas || '');
+          const questions = (TOPIC_QUESTIONS[t.id] || []).map((qItem, qIdx) => ({
+            id: qItem.id || `tq-${t.id}-${qIdx + 1}`,
+            q: qItem.q || '',
+            options: qItem.options || ['', '', '', ''],
+            answer: qItem.answer ?? 0,
+          }));
+
           list.push({
             id: `builtin-topic-${t.id}`,
             title: t.t,
@@ -37,13 +48,15 @@ export function getDefaultAdminContent(section, query = '') {
             status: 'published',
             sort_order: list.length + 1,
             metadata: {
+              topic_id: t.id,
               module_name: `Module ${modId}`,
               difficulty: Number(modId) <= 6 ? 'Beginner' : Number(modId) <= 10 ? 'Intermediate' : 'Advanced',
               estimated_minutes: 15,
               key_concepts: t.t,
               video_url: t.v || '',
               doc_url: t.d || '',
-              formula: '',
+              formula: formulaStr,
+              questions: questions,
             },
             updated_at: '2026-10-01T00:00:00Z',
           });
