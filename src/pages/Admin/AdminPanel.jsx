@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { adminApi } from '../../services/quantumApi.js';
+import { getDefaultAdminContent, mergeAdminContent } from '../../data/adminDefaults.js';
 
 const sections = [['overview', 'Overview'], ['users', 'Users'], ['contests', 'Contests'], ['modules', 'Modules'], ['topics', 'Topics'], ['resources', 'Resources'], ['questions', 'Questions'], ['circuit-challenges', 'Circuit challenges'], ['coding-challenges', 'Coding challenges'], ['achievements', 'Achievements'], ['projects', 'Projects'], ['announcements', 'Announcements'], ['settings', 'Settings'], ['audit', 'Audit log']];
 const contentSections = new Set(sections.map(([key]) => key).filter(key => !['overview', 'users', 'contests', 'settings', 'audit'].includes(key)));
@@ -8,10 +9,69 @@ const contentSections = new Set(sections.map(([key]) => key).filter(key => !['ov
 export default function AdminPanel() {
   const { refreshUser } = useAuth();
   const [section, setSection] = useState('overview'); const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [query, setQuery] = useState(''); const [editor, setEditor] = useState(null); const [contestEditor, setContestEditor] = useState(false); const [editingContest, setEditingContest] = useState(null); const [roleSaving, setRoleSaving] = useState('');
-  const load = async () => { setLoading(true); setError(''); try { const response = section === 'overview' ? await adminApi.dashboard() : section === 'users' ? await adminApi.users(query) : section === 'contests' ? await adminApi.contests() : section === 'settings' ? await adminApi.settings() : section === 'audit' ? await adminApi.auditLogs() : await adminApi.content(section, query); setData(response); } catch (e) { setError(e.message); } finally { setLoading(false); } };
+  const load = async () => {
+    setLoading(true); setError('');
+    try {
+      if (section === 'overview') {
+        setData(await adminApi.dashboard());
+      } else if (section === 'users') {
+        setData(await adminApi.users(query));
+      } else if (section === 'contests') {
+        setData(await adminApi.contests());
+      } else if (section === 'settings') {
+        setData(await adminApi.settings());
+      } else if (section === 'audit') {
+        setData(await adminApi.auditLogs());
+      } else {
+        let dbItems = [];
+        try {
+          const res = await adminApi.content(section, query);
+          dbItems = res?.items || [];
+        } catch {
+          dbItems = [];
+        }
+        const defaultItems = getDefaultAdminContent(section, query);
+        const merged = mergeAdminContent(dbItems, defaultItems);
+        setData({ items: merged });
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => { setQuery(''); setEditor(null); setContestEditor(false); setEditingContest(null); load(); }, [section]);
-  const saveContent = async values => { try { if (editor?.id) await adminApi.updateContent(section, editor.id, values); else await adminApi.createContent(section, values); setEditor(null); setNotice('Saved.'); load(); } catch (e) { setError(e.message); throw e; } };
-  const archive = async row => { if (!window.confirm(`Archive "${row.title}"? Historical records will be preserved.`)) return; try { await adminApi.archiveContent(section, row.id); setNotice('Archived.'); load(); } catch (e) { setError(e.message); } };
+  const saveContent = async values => {
+    try {
+      const isDbUuid = editor?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editor.id);
+      if (isDbUuid) {
+        await adminApi.updateContent(section, editor.id, values);
+      } else {
+        await adminApi.createContent(section, values);
+      }
+      setEditor(null);
+      setNotice('Saved.');
+      await load();
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    }
+  };
+  const archive = async row => {
+    if (!window.confirm(`Archive "${row.title}"? Historical records will be preserved.`)) return;
+    try {
+      const isDbUuid = row?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id);
+      if (isDbUuid) {
+        await adminApi.archiveContent(section, row.id);
+      } else {
+        await adminApi.createContent(section, { ...row, status: 'archived' });
+      }
+      setNotice('Archived.');
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
   const updateRole = async (id, role) => { setRoleSaving(id); try { await adminApi.updateUserRole(id, role); if (role === 'student' || role === 'instructor' || role === 'admin') { await refreshUser(); } setNotice('User role updated.'); load(); } catch (e) { setError(e.message); } finally { setRoleSaving(''); } };
   const saveSettings = async values => { try { await adminApi.updateSettings(values); setNotice('Settings saved.'); load(); } catch (e) { setError(e.message); throw e; } };
   const saveContest = async values => { try { await adminApi.createContest(values); setContestEditor(false); setNotice('Contest and problem created.'); await load(); } catch (e) { setError(e.message); throw e; } };
