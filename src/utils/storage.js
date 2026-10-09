@@ -633,6 +633,55 @@ export const storage = {
     return data.publicUrl;
   },
 
+  // ----------------------------------------------------
+  // ADMIN TOPIC OVERRIDES
+  // ----------------------------------------------------
+  async getTopicOverrides() {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('admin_topics')
+          .select('*')
+          .eq('status', 'published');
+        if (!error && data && data.length) {
+          localStorage.setItem('ql_topic_overrides', JSON.stringify(data));
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch topic overrides from Supabase:', e);
+    }
+    try {
+      const response = await fetch('/api/content/topics').then(r => r.json()).catch(() => null);
+      if (response?.topics?.length) {
+        localStorage.setItem('ql_topic_overrides', JSON.stringify(response.topics));
+        return response.topics;
+      }
+    } catch {}
+    try {
+      const cached = localStorage.getItem('ql_topic_overrides');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveTopicOverrideLocally(topicRecord) {
+    if (!topicRecord) return;
+    try {
+      const cached = JSON.parse(localStorage.getItem('ql_topic_overrides') || '[]');
+      const tid = topicRecord.metadata?.topic_id;
+      const filtered = cached.filter(t => 
+        t.id !== topicRecord.id && 
+        (!tid || t.metadata?.topic_id !== tid) &&
+        t.title !== topicRecord.title
+      );
+      filtered.push(topicRecord);
+      localStorage.setItem('ql_topic_overrides', JSON.stringify(filtered));
+    } catch (e) {
+      console.warn('Failed to cache topic override locally:', e);
+    }
+  },
 };
 
 export function createDefaultProgress() {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { adminApi } from '../../services/quantumApi.js';
 import { getDefaultAdminContent, mergeAdminContent } from '../../data/adminDefaults.js';
+import { storage } from '../../utils/storage.js';
 
 const sections = [['overview', 'Overview'], ['users', 'Users'], ['contests', 'Contests'], ['modules', 'Modules'], ['topics', 'Topics'], ['resources', 'Resources'], ['questions', 'Questions'], ['circuit-challenges', 'Circuit challenges'], ['coding-challenges', 'Coding challenges'], ['achievements', 'Achievements'], ['projects', 'Projects'], ['announcements', 'Announcements'], ['settings', 'Settings'], ['audit', 'Audit log']];
 const contentSections = new Set(sections.map(([key]) => key).filter(key => !['overview', 'users', 'contests', 'settings', 'audit'].includes(key)));
@@ -44,10 +45,15 @@ export default function AdminPanel() {
   const saveContent = async values => {
     try {
       const isDbUuid = editor?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editor.id);
+      let res;
       if (isDbUuid) {
-        await adminApi.updateContent(section, editor.id, values);
+        res = await adminApi.updateContent(section, editor.id, values);
       } else {
-        await adminApi.createContent(section, values);
+        res = await adminApi.createContent(section, values);
+      }
+      if (section === 'topics') {
+        const row = res?.item || res || { ...values, id: editor?.id };
+        storage.saveTopicOverrideLocally(row);
       }
       setEditor(null);
       setNotice('Saved.');
@@ -188,7 +194,13 @@ function Editor({ value, title, section, close, save }) {
   const [description, setDescription] = useState(value.description || value.body || '');
   const [status, setStatus] = useState(value.status || 'draft');
   const [sortOrder, setSortOrder] = useState(value.sort_order ?? 0);
-  const [meta, setMeta] = useState(() => ({ ...(value.metadata || {}) }));
+  const [meta, setMeta] = useState(() => {
+    const initialMeta = { ...(value.metadata || {}) };
+    if (!initialMeta.topic_id && value.id?.startsWith('builtin-topic-')) {
+      initialMeta.topic_id = value.id.replace('builtin-topic-', '');
+    }
+    return initialMeta;
+  });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 

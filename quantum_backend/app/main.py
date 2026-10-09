@@ -45,6 +45,18 @@ app.include_router(jobs.router)
 app.include_router(contests.router)
 app.include_router(admin.router)
 
+
+@app.get("/api/content/topics")
+async def get_published_topics():
+    """Public read of published topics so all users get admin customizations."""
+    try:
+        from app.services.admin_service import store
+        topics = await store.request("GET", "admin_topics?status=eq.published&select=*&order=sort_order.asc")
+        return {"success": True, "topics": topics or []}
+    except Exception:
+        return {"success": True, "topics": []}
+
+
 _backend_root = Path(__file__).resolve().parents[1]
 _frontend_dist = next(
     (candidate for candidate in (_backend_root / "dist", _backend_root.parent / "dist") if candidate.is_dir()),

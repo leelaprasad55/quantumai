@@ -9,6 +9,7 @@ import { getTopicCircuit } from '../../data/topicCircuits.js';
 import { getTopicFormula } from '../../data/topicFormulas.js';
 import { checkPrerequisites, updateSkillsFromScore } from '../../utils/adaptive.js';
 import { simulateCircuit } from '../../utils/quantum.js';
+import { storage } from '../../utils/storage.js';
 import AITutor from '../../components/ai/AITutor.jsx';
 
 const MODULE_NOTES = {
@@ -134,8 +135,10 @@ function TopicCircuitChallenge({ challenge, topicId }) {
 }
 
 /* ── Topic Quiz (after-topic assessment) ── */
-function TopicQuiz({ topicId, topicName }) {
-  const questions = getTopicQuestions(topicId, topicName);
+function TopicQuiz({ topicId, topicName, customQuestions }) {
+  const questions = (Array.isArray(customQuestions) && customQuestions.length)
+    ? customQuestions
+    : getTopicQuestions(topicId, topicName);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState(null);
   const [answered, setAnswered] = useState(false);
@@ -299,7 +302,7 @@ function TopicView({ topic, modId }) {
         </div>
       )}
 
-      {tab === 'quiz' && <TopicQuiz topicId={topic.id} topicName={topic.t} />}
+      {tab === 'quiz' && <TopicQuiz topicId={topic.id} topicName={topic.t} customQuestions={topic.questions} />}
 
       {tab === 'circuit' && circuit && <TopicCircuitChallenge challenge={circuit} topicId={topic.id} />}
     </div>
@@ -397,10 +400,84 @@ export default function ModuleDetail() {
   const nav = useNavigate();
   const modId = parseInt(id);
   const mod = MODULES.find(m => m.id === modId);
-  const topics = ALL_TOPICS[modId] || [];
+  const [topics, setTopics] = useState(() => ALL_TOPICS[modId] || []);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const { progress, skills } = useProgress();
+
+  useEffect(() => {
+    let isMounted = true;
+    const baseTopics = ALL_TOPICS[modId] || [];
+
+    const applyOverrides = (overrides) => {
+      if (!overrides || !overrides.length) return baseTopics;
+      const overrideMap = new Map();
+      overrides.forEach(row => {
+        const tid = row.metadata?.topic_id;
+        if (tid) overrideMap.set(String(tid), row);
+        if (row.title) overrideMap.set(row.title.toLowerCase().trim(), row);
+      });
+
+      const merged = baseTopics.map(bt => {
+        const match = overrideMap.get(String(bt.id)) || overrideMap.get(bt.t?.toLowerCase().trim());
+        if (!match) return bt;
+        return {
+          ...bt,
+          t: match.title || bt.t,
+          v: match.metadata?.video_url !== undefined && match.metadata?.video_url !== '' ? match.metadata.video_url : bt.v,
+          d: match.metadata?.doc_url !== undefined && match.metadata?.doc_url !== '' ? match.metadata.doc_url : bt.d,
+          formula: match.metadata?.formula || bt.formula,
+          questions: match.metadata?.questions || bt.questions,
+        };
+      });
+
+      overrides.forEach(row => {
+        const modName = (row.metadata?.module_name || '').toLowerCase();
+        if (modName.includes(`module ${modId}`) || modName.includes(`m${modId}`)) {
+          const tid = row.metadata?.topic_id;
+          const alreadyExists = merged.some(m => (tid && m.id === tid) || m.t.toLowerCase().trim() === row.title.toLowerCase().trim());
+          if (!alreadyExists) {
+            merged.push({
+              id: tid || `admin-${row.id}`,
+              t: row.title,
+              v: row.metadata?.video_url || '',
+              d: row.metadata?.doc_url || '',
+              formula: row.metadata?.formula || '',
+              questions: row.metadata?.questions || [],
+            });
+          }
+        }
+      });
+
+      return merged;
+    };
+
+    try {
+      const cached = localStorage.getItem('ql_topic_overrides');
+      if (cached) {
+        setTopics(applyOverrides(JSON.parse(cached)));
+      }
+    } catch {}
+
+    storage.getTopicOverrides().then(overrides => {
+      if (isMounted && overrides) {
+        setTopics(applyOverrides(overrides));
+      }
+    }).catch(err => {
+      console.warn('Error loading topic overrides:', err);
+    });
+
+    return () => { isMounted = false; };
+  }, [modId]);
+
+  useEffect(() => {
+    if (selectedTopic && topics.length) {
+      const updated = topics.find(t => t.id === selectedTopic.id || t.t === selectedTopic.t);
+      if (updated && (updated.v !== selectedTopic.v || updated.d !== selectedTopic.d || updated.t !== selectedTopic.t || updated.formula !== selectedTopic.formula)) {
+        setSelectedTopic(updated);
+      }
+    }
+  }, [topics]);
 
   useEffect(() => {
     if (!progress || !skills) return;
