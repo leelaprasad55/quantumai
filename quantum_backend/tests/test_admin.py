@@ -177,3 +177,32 @@ def test_admin_contest_creation_requires_a_problem():
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+def test_admin_can_update_contest(monkeypatch):
+    async def admin_user():
+        return {"id": "00000000-0000-0000-0000-000000000001"}
+
+    async def update_contest(contest_id, payload, admin_id):
+        assert contest_id == "10000000-0000-0000-0000-000000000001"
+        assert admin_id == "00000000-0000-0000-0000-000000000001"
+        assert payload["title"] == "Updated contest"
+        return {"id": contest_id, **payload}
+
+    monkeypatch.setattr(store, "update_contest", update_contest)
+    app.dependency_overrides[require_admin] = admin_user
+    try:
+        response = client.patch(
+            "/api/admin/contests/10000000-0000-0000-0000-000000000001",
+            json={
+                "title": "Updated contest",
+                "start_time": "2026-10-15T10:00:00Z",
+                "end_time": "2026-10-16T10:00:00Z",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["contest"]["title"] == "Updated contest"
+

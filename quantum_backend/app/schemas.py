@@ -151,6 +151,23 @@ class AdminContestRequest(BaseModel):
         return value
 
 
+class AdminContestUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    is_rated: bool | None = None
+
+    @field_validator("end_time")
+    @classmethod
+    def validate_timeline(cls, value: datetime | None, info):
+        start_time = info.data.get("start_time")
+        if start_time is not None and value is not None:
+            if value <= start_time:
+                raise ValueError("Contest end_time must be later than start_time.")
+        return value
+
+
 class AdminAnnouncementRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=5000)

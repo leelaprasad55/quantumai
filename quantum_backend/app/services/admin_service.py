@@ -100,13 +100,18 @@ class AdminStore:
     async def create_content(self, entity: str, values: dict[str, Any], admin_id: str):
         table = CONTENT_TABLES[entity]
         payload = {**values, "created_by": admin_id, "updated_by": admin_id}
+        if entity == "announcements":
+            payload["body"] = payload.get("body") or payload.get("description") or payload["title"]
         rows = await self.request("POST", table, json=payload, headers={"Prefer": "return=representation"})
         await self.audit(admin_id, "create", entity, rows[0]["id"], {"title": rows[0]["title"]})
         return rows[0]
 
     async def update_content(self, entity: str, record_id: str, values: dict[str, Any], admin_id: str):
         table = CONTENT_TABLES[entity]
-        rows = await self.request("PATCH", f"{table}?id=eq.{record_id}", json={**values, "updated_by": admin_id}, headers={"Prefer": "return=representation"})
+        payload = {**values, "updated_by": admin_id}
+        if entity == "announcements":
+            payload["body"] = payload.get("body") or payload.get("description") or payload["title"]
+        rows = await self.request("PATCH", f"{table}?id=eq.{record_id}", json=payload, headers={"Prefer": "return=representation"})
         if not rows:
             return None
         await self.audit(admin_id, "update", entity, record_id, {"title": rows[0]["title"], "status": rows[0]["status"]})
@@ -148,6 +153,32 @@ class AdminStore:
             "GET",
             "contests?select=id,title,description,start_time,end_time,is_rated,created_at&order=start_time.desc",
         )
+
+    async def update_contest(self, contest_id: str, payload: dict[str, Any], admin_id: str):
+        patch_values = {}
+        for key in ["title", "description", "start_time", "end_time", "is_rated"]:
+            if key in payload and payload[key] is not None:
+                patch_values[key] = payload[key]
+        if not patch_values:
+            rows = await self.request("GET", f"contests?id=eq.{contest_id}&select=*")
+            return rows[0] if rows else None
+        rows = await self.request(
+            "PATCH",
+            f"contests?id=eq.{contest_id}",
+            json=patch_values,
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            return None
+        contest = rows[0]
+        await self.audit(
+            admin_id,
+            "update",
+            "contest",
+            contest_id,
+            patch_values,
+        )
+        return contest
 
     async def set_role(self, user_id: str, role: str, admin_id: str):
         if user_id == admin_id and role != "admin":
